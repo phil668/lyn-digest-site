@@ -1,0 +1,50 @@
+:root{--bg:#fbfaf7;--fg:#1f1d1a;--mute:#86807a;--acc:#9a3b26;--line:#e4e0d8;--zg:#5e5873}
+[data-theme=dark]{--bg:#161514;--fg:#e7e3dc;--mute:#8f8981;--acc:#d9866c;--line:#2e2c29;--zg:#a8a1c2}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:17px/1.95 "PingFang SC","Noto Sans SC","Noto Sans CJK SC","Microsoft YaHei",system-ui,sans-serif;letter-spacing:.02em}
+.serif,h1,h2,.kicker,.brand,.date,.zhiguai{font-family:"Noto Serif SC","Noto Serif CJK SC","Source Han Serif SC","Songti SC","STSong",serif}
+nav.top{position:sticky;top:0;z-index:5;display:flex;justify-content:space-between;align-items:center;padding:.9rem 1.5rem;background:var(--bg);border-bottom:1px solid var(--line)}
+.brand{color:var(--fg);text-decoration:none;font-size:.95rem;letter-spacing:.12em}
+nav button{border:0;background:none;color:var(--mute);font-size:1.1rem;cursor:pointer}
+main{max-width:660px;margin:0 auto;padding:3.5rem 1.5rem 4rem}
+h1{font-weight:600;font-size:2.1rem;line-height:1.35;margin:0 0 1rem;letter-spacing:.06em}
+.intro{color:var(--mute);margin:0 0 2.5rem}.count{color:var(--mute);font-size:.8rem;letter-spacing:.2em;text-transform:uppercase}
+a{color:var(--acc);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--acc) 35%,transparent);word-break:break-all}
+a:hover{border-bottom-color:var(--acc)}
+.jump{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;font-size:.85rem;padding:.8rem 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:2rem}
+.jump a{color:var(--mute);border:0}.jump a:hover{color:var(--acc)}
+.day{margin:3rem 0}.date{font-weight:500;font-size:1.3rem;letter-spacing:.1em;margin:0 0 .4rem;padding-bottom:.5rem;border-bottom:1px solid var(--fg)}
+.list{list-style:none;padding:0;margin:0}.list li{border-bottom:1px solid var(--line)}
+.list a{display:flex;gap:1.4rem;padding:1.1rem 0;color:var(--fg);border:0}
+.list a:hover .teaser{color:var(--acc)}
+.slot{flex:0 0 2.6rem;font-family:"Noto Serif SC","Songti SC",serif;color:var(--acc);font-size:.9rem;padding-top:.15rem}
+.entry{display:flex;flex-direction:column}.teaser{transition:color .15s;line-height:1.7}
+.meta{font-size:.78rem;color:var(--mute);letter-spacing:.08em}
+.who{color:var(--fg);font-weight:600;margin-right:.3rem}.who-日知{color:var(--acc)}
+.issue-head{margin-bottom:2.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--line)}
+.kicker{font-size:.85rem;letter-spacing:.3em;color:var(--acc);margin-bottom:.8rem}.kicker .sep{color:var(--line);margin:0 .3rem}
+.byline{font-size:.85rem;color:var(--mute);letter-spacing:.1em}
+article p{margin:0 0 1.4rem}article ul,article ol{padding-left:1.3rem}
+article h1,article h2,article h3{font-size:1.25rem}
+hr{border:0;border-top:1px solid var(--line);margin:2.5rem auto;width:30%}
+blockquote{margin:0 0 1.4rem;padding:0 1.2rem;border-left:1px solid var(--acc);color:var(--mute)}
+.zhiguai{margin-top:3rem;padding:0 0 0 1.4rem;border-left:1px solid var(--zg)}
+.zhiguai .tag{font-variant:small-caps;font-size:.75rem;letter-spacing:.4em;color:var(--zg);margin-bottom:.8rem}
+.zhiguai hr:first-of-type{display:none}
+.pager{display:flex;justify-content:space-between;margin-top:3.5rem;padding-top:1.2rem;border-top:1px solid var(--line);font-size:.9rem}
+.pager a{border:0}
+footer{text-align:center;color:var(--mute);font-size:.75rem;letter-spacing:.15em;padding:2.5rem}
+@media(max-width:600px){body{font-size:16px}main{padding:2rem 1.2rem 3rem}h1{font-size:1.7rem}.list a{gap:1rem}}
+
+.nav-right{display:flex;align-items:center;gap:1.2rem}
+.nav-link{color:var(--mute);text-decoration:none;border:0;font-size:.85rem;letter-spacing:.12em}
+.nav-link:hover,.nav-link.active{color:var(--fg);border:0}
+.tag-row{display:flex;justify-content:space-between;align-items:baseline;gap:1rem;margin-bottom:.8rem}
+.col-link{font-family:"PingFang SC","Noto Sans SC",sans-serif;font-size:.75rem;letter-spacing:.15em;color:var(--mute);border:0;text-decoration:none}
+.col-link:hover{color:var(--acc);border:0}
+.zg-list{list-style:none;padding:0;margin:0}
+.zg-entry{border-bottom:1px solid var(--line)}
+.zg-entry a{display:block;padding:1.6rem 0;color:var(--fg);border:0;text-decoration:none}
+.zg-entry a:hover .zg-title{color:var(--acc)}
+.zg-title{font-family:"Noto Serif SC","Noto Serif CJK SC","Songti SC",serif;font-size:1.15rem;letter-spacing:.06em;margin:.45rem 0 .35rem;line-height:1.5}
+.zg-entry .teaser{color:var(--mute);font-size:.95rem;line-height:1.8}

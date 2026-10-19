@@ -315,3 +315,74 @@ footer { text-align: center; color: var(--mute); font-size: 0.75rem; letter-spac
   .drop-cap { font-size: 2.9rem; }
   .list a { gap: 1rem; }
 }
+
+/* —— 刊架主页（报摊版）—— */
+main:has(> .home) { max-width: 1120px; padding-top: 1.6rem; }
+.rack-mast { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 2.5px solid var(--rule); padding-bottom: 0.9rem; margin-bottom: 1.6rem; gap: 1rem; }
+.rack-mast .vol { font-size: 0.72rem; letter-spacing: 0.35em; color: var(--acc); margin-bottom: 0.25rem; }
+.rack-title { margin: 0; font-size: clamp(2.2rem, 6vw, 3.1rem); font-weight: 600; line-height: 1.05; letter-spacing: 0.28em; text-indent: 0.28em; }
+.rack-sub { text-align: right; font-size: 0.78rem; line-height: 1.7; letter-spacing: 0.12em; color: var(--mute); }
+.rack-sub strong { display: block; color: var(--fg); font-weight: 600; letter-spacing: 0.2em; font-size: 0.92rem; }
+.rack-section { margin: 0 0 2.4rem; }
+.rack-section-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1rem; padding-bottom: 0.45rem; border-bottom: 1px solid var(--rule); }
+.rack-section-head h2 { margin: 0; font-size: 1.05rem; letter-spacing: 0.28em; font-weight: 600; }
+.rack-section-head .hint { font-size: 0.72rem; letter-spacing: 0.18em; color: var(--mute); border: 0; }
+.rack-section-head a.hint:hover { color: var(--acc); }
+.today-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; align-items: stretch; }
+.slot-card { display: flex; flex-direction: column; background: var(--paper); border: 1.5px solid var(--rule); padding: 1.25rem 1.3rem 1.35rem; min-height: 100%; text-decoration: none; color: var(--fg); transition: background 0.15s, border-color 0.15s, transform 0.15s; position: relative; box-shadow: inset 0 0 0 4px var(--paper), inset 0 0 0 5px color-mix(in srgb, var(--rule) 35%, transparent); }
+a.slot-card:hover { background: color-mix(in srgb, var(--acc) 5%, var(--paper)); border-color: var(--acc); transform: translateY(-2px); }
+.slot-card.featured { background: color-mix(in srgb, var(--acc) 6%, var(--paper)); border-width: 2px; }
+.slot-card.pending { opacity: 0.55; pointer-events: none; border-style: dashed; box-shadow: none; }
+.slot-card .slot-label { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 0.7rem; font-size: 0.72rem; letter-spacing: 0.32em; color: var(--acc); }
+.slot-card .slot-label .time { letter-spacing: 0.12em; color: var(--mute); font-family: "PingFang SC", "Noto Sans SC", sans-serif; }
+.slot-card .who-line { font-size: 0.78rem; letter-spacing: 0.12em; color: var(--mute); margin-bottom: 0.85rem; }
+.slot-card .who-line .who { color: var(--acc); font-weight: 600; }
+.slot-card h3 { margin: 0 0 0.85rem; font-size: 1.12rem; font-weight: 600; line-height: 1.45; letter-spacing: 0.03em; }
+.slot-card.featured h3 { font-size: 1.28rem; }
+.dual-tease { display: flex; flex-direction: column; gap: 0.55rem; margin-bottom: 0.9rem; flex: 1; }
+.dual-tease .row { display: grid; grid-template-columns: 3.4rem 1fr; gap: 0.55rem; font-size: 0.88rem; line-height: 1.5; color: var(--ink-soft); }
+.dual-tease .tag { font-size: 0.72rem; letter-spacing: 0.08em; color: var(--acc); padding-top: 0.12rem; }
+.slot-card .tease { flex: 1; font-size: 0.92rem; line-height: 1.65; color: var(--ink-soft); margin: 0 0 1rem; }
+.slot-card .open { margin-top: auto; font-size: 0.78rem; letter-spacing: 0.22em; color: var(--acc); border: 0; padding-top: 0.6rem; border-top: 1px solid var(--line); }
+.slot-card.pending .open { color: var(--mute); }
+.recent-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.85rem; }
+.day-card { background: var(--paper); border: 1px solid var(--line); padding: 1rem 1.05rem 1.1rem; display: flex; flex-direction: column; min-width: 0; }
+.day-card .day-date { font-size: 0.95rem; letter-spacing: 0.12em; font-weight: 600; border-bottom: 1px solid var(--rule); padding-bottom: 0.45rem; margin: 0 0 0.65rem; }
+.day-card .dow { font-size: 0.68rem; letter-spacing: 0.2em; color: var(--mute); font-weight: 400; margin-left: 0.35rem; }
+.day-card ul { list-style: none; padding: 0; margin: 0; flex: 1; }
+.day-card li { border-bottom: 1px solid var(--line); }
+.day-card li:last-child { border-bottom: 0; }
+.day-card a { display: grid; grid-template-columns: 2.4rem 1fr; gap: 0.45rem; padding: 0.55rem 0; color: var(--fg); border: 0; font-size: 0.82rem; line-height: 1.45; text-decoration: none; }
+.day-card a:hover { color: var(--acc); border: 0; }
+.day-card .s { color: var(--acc); letter-spacing: 0.08em; font-size: 0.78rem; }
+.day-card .t { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; color: var(--ink-soft); }
+.day-card a:hover .t { color: var(--acc); }
+.archive-strip { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.1rem 1.3rem; border: 1.5px solid var(--rule); background: var(--paper); margin-bottom: 1.6rem; }
+.archive-strip .copy { font-size: 0.92rem; letter-spacing: 0.06em; color: var(--ink-soft); }
+.archive-strip .copy strong { color: var(--fg); letter-spacing: 0.18em; margin-right: 0.5rem; }
+.archive-strip .go { flex-shrink: 0; font-size: 0.82rem; letter-spacing: 0.22em; color: var(--acc); border: 0; white-space: nowrap; }
+.archive-strip .go:hover { border: 0; opacity: 0.85; }
+.zg-blurb { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; padding: 0.9rem 0; border-top: 1px dashed color-mix(in srgb, var(--zg) 50%, transparent); border-bottom: 1px dashed color-mix(in srgb, var(--zg) 50%, transparent); margin-bottom: 1rem; font-size: 0.9rem; color: var(--ink-soft); letter-spacing: 0.04em; }
+.zg-blurb a { flex-shrink: 0; color: var(--zg); border: 0; letter-spacing: 0.18em; font-size: 0.78rem; }
+.zg-blurb a:hover { color: var(--acc); border: 0; }
+.archive-page .back { display: inline-block; margin-bottom: 1.2rem; font-size: 0.82rem; letter-spacing: 0.18em; color: var(--mute); border: 0; }
+.archive-page .back:hover { color: var(--acc); border: 0; }
+@media (max-width: 960px) {
+  .today-grid { grid-template-columns: 1fr; }
+  .recent-grid { grid-template-columns: 1fr 1fr; }
+  .slot-card.featured h3 { font-size: 1.15rem; }
+}
+@media (max-width: 560px) {
+  .rack-mast { flex-direction: column; align-items: flex-start; }
+  .rack-sub { text-align: left; }
+  .rack-title { letter-spacing: 0.18em; text-indent: 0.18em; }
+  .recent-grid { grid-template-columns: 1fr; }
+  .archive-strip { flex-direction: column; align-items: flex-start; }
+  .zg-blurb { flex-direction: column; gap: 0.4rem; }
+}
+@media (max-width: 560px) {
+  nav.top { padding: 0.75rem 1rem; gap: 0.6rem; }
+  .brand { font-size: 0.8rem; letter-spacing: 0.06em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .nav-right { gap: 0.75rem; flex-shrink: 0; }
+  .nav-link { white-space: nowrap; letter-spacing: 0.06em; }
+}

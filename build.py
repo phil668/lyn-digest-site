@@ -99,7 +99,7 @@ def split_sections(body):
                 kind, domain, title = "headline", hm.group(1).strip(), hm.group(2).strip()
             else:
                 domain, title = pm.group(1).strip(), pm.group(2).strip()
-                kind = "zhiguai" if any(k in domain or k in title for k in ("志怪", "小灶", "民俗")) else "piece"
+                kind = "zhiguai" if any(k in domain or k in title for k in ("志怪", "小灶", "民俗", "神话", "传说", "历史")) else "piece"
             i += 1
             body_lines = []
             while i < len(lines):
@@ -125,7 +125,7 @@ def split_sections(body):
                 i += 1
             headlines = [b for b in blocks if b[0] == "headline"]
             pieces = [b for b in blocks if b[0] == "piece"]
-            zg = next((b for b in blocks if b[0] == "zhiguai"), None)
+            zg = [b for b in blocks if b[0] == "zhiguai"]
             return preamble, headlines, pieces, zg, signoff
         if not blocks:
             if line.strip():
@@ -134,7 +134,7 @@ def split_sections(body):
 
     headlines = [b for b in blocks if b[0] == "headline"]
     pieces = [b for b in blocks if b[0] == "piece"]
-    zg = next((b for b in blocks if b[0] == "zhiguai"), None)
+    zg = [b for b in blocks if b[0] == "zhiguai"]
     return preamble, headlines, pieces, zg, ""
 
 
@@ -219,24 +219,121 @@ def render_piece_grid(pieces):
     return f'<div class="piece-grid">{"".join(cells)}</div>'
 
 
-def render_zhiguai(zg, column_href):
+
+def format_hist_body(body_lines):
+    """Like body_to_paras, but pair 原文／白话 into quote cards when consecutive."""
+    if not body_lines:
+        return ""
+    html_parts, i = [], 0
+    lines = list(body_lines)
+    while i < len(lines):
+        s = lines[i].strip()
+        if s.startswith("原文") and i + 1 < len(lines) and lines[i+1].strip().startswith("白话"):
+            src = s
+            bai = lines[i+1].strip()
+            # optional following blank skip
+            html_parts.append(
+                f'<div class="hist-quote"><span class="q-src">正史摘录</span>'
+                f'<div>{inline(src)}</div>'
+                f'<div class="hist-baihua">{inline(bai)}</div></div>'
+            )
+            i += 2
+            continue
+        if not s:
+            i += 1
+            continue
+        # gather paragraph until blank
+        chunk = [lines[i]]
+        i += 1
+        while i < len(lines) and lines[i].strip():
+            # break if next is 原文 start of pair
+            if lines[i].strip().startswith("原文") and i + 1 < len(lines) and lines[i+1].strip().startswith("白话"):
+                break
+            chunk.append(lines[i])
+            i += 1
+        html_parts.append("<p>" + "<br>\n".join(inline(x) for x in chunk) + "</p>")
+    return "".join(html_parts)
+
+
+def classify_xiaozao(domain, title):
+    blob = domain + title
+    if "历史" in blob:
+        return "历史", "hist"
+    if "神话" in blob or "传说" in blob:
+        return "神话", "myth"
+    if "民俗" in blob:
+        return "民俗", "folk"
+    return "志怪", "ghost"
+
+
+def render_zhiguai(zg, column_href, hist_href=None):
+    """zg: list of blocks. History goes to separate page; others in 小灶 grid."""
     if not zg:
         return ""
-    kind, domain, title, body_lines = zg
-    # title may still contain long 附｜志怪小灶：…
-    display = title
-    for sep in ("：", ":"):
-        if "志怪" in display and sep in display:
-            # keep after last useful sep if very long label
-            pass
-    return (
-        f'<aside class="zg-spread" id="zhiguai">'
-        f'<div class="tag-row"><span class="zg-tag">小灶</span>'
-        f'<a class="col-link" href="{column_href}">查看小灶</a></div>'
-        f'<h3 class="zg-title">{html.escape(display)}</h3>'
-        f'<div class="zg-body">{body_to_paras(body_lines)}</div>'
-        f"</aside>"
+    cards, hist = [], None
+    for kind, domain, title, body_lines in zg:
+        sub, cls = classify_xiaozao(domain, title)
+        if sub == "历史":
+            hist = (domain, title, body_lines)
+            continue
+        disp = title
+        for pre in ("志怪｜", "民俗｜", "神话｜", "传说｜", "历史｜", "志怪小灶：", "附｜志怪小灶："):
+            if disp.startswith(pre):
+                disp = disp[len(pre):]
+        cards.append(
+            f'<div class="xz-card xz-{cls}">'
+            f'<div class="xz-sub">{sub}</div>'
+            f'<h3 class="zg-title">{html.escape(disp)}</h3>'
+            f'<div class="zg-body">{body_to_paras(body_lines)}</div></div>'
+        )
+    parts = []
+    if cards:
+        n = len(cards)
+        gcls = "xz-grid three" if n >= 3 else ("xz-grid two" if n == 2 else "xz-grid")
+        parts.append(
+            f'<aside class="zg-spread" id="zhiguai">'
+            f'<div class="tag-row"><span class="zg-tag">小灶 · 志怪＋民俗＋神话</span>'
+            f'<a class="col-link" href="{column_href}">查看小灶</a></div>'
+            f'<div class="{gcls}">{"".join(cards)}</div></aside>'
+        )
+    if hist and hist_href:
+        _, title, _ = hist
+        disp = title
+        for pre in ("历史｜",):
+            if disp.startswith(pre):
+                disp = disp[len(pre):]
+        parts.append(
+            f'<a class="hist-teaser" href="{hist_href}">'
+            f'<span class="ht-kicker">小灶 · 历史专页</span>'
+            f'<span class="ht-title">{html.escape(disp)}</span>'
+            f'<span class="ht-go">读完整人物志 →</span></a>'
+        )
+    return "".join(parts)
+
+
+def render_history_page(m, hist, root="../"):
+    domain, title, body_lines = hist
+    disp = title
+    for pre in ("历史｜",):
+        if disp.startswith(pre):
+            disp = disp[len(pre):]
+    serial = ""
+    if "第" in disp and "天" in disp:
+        serial = '<div class="hist-serial">人物志 · 可按篇幅分日连载</div>'
+    body = (
+        f'<div class="issue-page hist-page">'
+        f'<div class="issue-mast"><a class="brand-sm" href="{root}index.html">日知</a>'
+        f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · {html.escape(m["slot"])} · 历史</span></div>'
+        f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史专页</div>'
+        f'<h1 class="issue-title">{html.escape(disp)}</h1>'
+        f'<div class="byline">文 · <span class="who who-{m["署名"]}">{m["署名"]}</span></div></header>'
+        f'{serial}'
+        f'<div class="hist-body">{format_hist_body(body_lines)}</div>'
+        f'<footer class="folio"><a href="{m["slug"]}.html">← 回本期</a>'
+        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · 历史</span>'
+        f'<a href="{root}zhiguai.html">小灶</a></footer></div>'
     )
+    return page(f'历史 · {disp}', body, root, active="zhiguai")
 
 
 def render_preamble(preamble):
@@ -257,10 +354,16 @@ def render_preamble(preamble):
 
 def extract_zhiguai(body):
     """Return (title, excerpt_plain) or None — for column index."""
-    _, _, _, zg, _ = split_sections(body)
-    if not zg:
+    _, _, _, zgs, _ = split_sections(body)
+    if not zgs:
         return None
-    _, domain, title, body_lines = zg
+    out = []
+    for _, domain, title, body_lines in zgs:
+        out.append(_zg_one(domain, title, body_lines))
+    return out
+
+
+def _zg_one(domain, title, body_lines):
     excerpt = ""
     for l in body_lines:
         s = strip_md(l)
@@ -418,7 +521,7 @@ def rack_html(issues, days):
 <div class="recent-grid">{"".join(recent)}</div></section>
 <div class="archive-strip"><div class="copy"><strong>往期</strong>共 {len(issues)} 期 · 按日编排</div>
 <a class="go" href="archive.html">全部目录 →</a></div>
-<div class="zg-blurb"><span>小灶：每期附一篇志怪或民俗短篇（聊斋／子不语／地方传承等）。</span>
+<div class="zg-blurb"><span>小灶：志怪＋民俗＋神话在内页；中国历史人物志单独一页。</span>
 <a href="zhiguai.html">小灶 →</a></div></div>"""
 
 
@@ -493,8 +596,14 @@ def main():
             + render_preamble(preamble)
             + render_double_lead(headlines)
             + render_piece_grid(pieces)
-            + render_zhiguai(zg, "../zhiguai.html")
-        )
+            )
+        hist_block = next((b for b in (zg or []) if classify_xiaozao(b[1], b[2])[0] == "历史"), None)
+        hist_href = f'{m["slug"]}-history.html' if hist_block else None
+        article += render_zhiguai(zg, "../zhiguai.html", hist_href=hist_href)
+        if hist_block:
+            (OUT / "issues" / f'{m["slug"]}-history.html').write_text(
+                render_history_page(m, hist_block[1:], root="../"), encoding="utf-8"
+            )
         if signoff:
             article += f'<p class="signoff">{html.escape(signoff)}</p>'
         article += (
@@ -512,9 +621,7 @@ def main():
             ),
             encoding="utf-8",
         )
-        zg_info = extract_zhiguai(body)
-        if zg_info:
-            title, excerpt = zg_info
+        for title, excerpt in (extract_zhiguai(body) or []):
             zhiguai_entries.append((m, title, excerpt))
 
     days = {}
@@ -549,7 +656,7 @@ def main():
     zg_body = (
         '<header class="issue-head"><div class="kicker">小灶</div>'
         '<h1 class="issue-title">小灶</h1>'
-        '<p class="intro" style="margin:0">每期知识分享末尾的志怪与民俗短篇，按时间倒序汇于此。'
+        '<p class="intro" style="margin:0">每期知识分享的小灶（志怪／民俗／神话）与历史专页，按时间倒序汇于此。'
         "点开可跳到该期全文对应段落。</p></header>"
         f'<p class="count">共 {len(zhiguai_entries)} 则</p>'
         f'<ul class="zg-list">{"".join(zg_items)}</ul>'

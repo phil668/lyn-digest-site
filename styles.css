@@ -241,13 +241,13 @@ footer { text-align: center; color: var(--mute); font-size: 0.75rem; letter-spac
 }
 .sources a:hover { color: var(--acc); border-bottom-color: var(--acc); }
 
-/* 志怪专栏框 */
+/* 小灶框 */
 .zg-spread, section.zhiguai {
   margin-top: 2.2rem; padding: 1.7rem 1.5rem 1.5rem; border: 1px solid var(--zg);
   background: color-mix(in srgb, var(--zg) 6%, var(--paper)); position: relative;
 }
 .zg-spread::before, section.zhiguai::before {
-  content: "专栏"; position: absolute; top: -0.65rem; left: 1.2rem;
+  content: "小灶"; position: absolute; top: -0.65rem; left: 1.2rem;
   background: var(--paper); padding: 0 0.5rem; font-size: 0.68rem;
   letter-spacing: 0.4em; color: var(--zg);
 }
@@ -283,7 +283,7 @@ footer { text-align: center; color: var(--mute); font-size: 0.75rem; letter-spac
 .pager a:hover, .folio a:hover { color: var(--acc); border: 0; }
 .folio .center { letter-spacing: 0.35em; font-size: 0.72rem; }
 
-/* 志怪专栏列表页 */
+/* 小灶列表页 */
 .zg-list { list-style: none; padding: 0; margin: 0; }
 .zg-entry { border-bottom: 1px solid var(--line); }
 .zg-entry a { display: block; padding: 1.5rem 0; color: var(--fg); border: 0; text-decoration: none; }

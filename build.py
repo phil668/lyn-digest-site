@@ -28,6 +28,15 @@ ORDER = {"上午": 0, "午间": 1, "晚间": 2}
 SLOT = {"下午": "午间"}
 SRC = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/lyn-digests")
 OUT = Path(__file__).resolve().parent
+XZ_SRC = Path("/workspace/lyn-xiaozao")
+ZONES = [
+    ("zhiguai", "灵异志怪", "鬼故事、搜神与志异"),
+    ("minsu", "传统民俗", "节令、礼俗与民间规矩"),
+    ("shenhua", "神话传说", "山海经与古史传说"),
+    ("history", "历史人物", "人物志与专名大事"),
+]
+ZONE_KEY = {name: key for key, name, _ in ZONES}
+ZONE_PAGE = {key: f"xiaozao-{key}.html" for key, _, _ in ZONES}
 
 # **头条｜领域｜标题** 或 **领域｜标题**
 HEADLINE_RE = re.compile(r"^\*\*头条｜([^｜*]+)｜(.+?)\*\*\s*$")
@@ -331,9 +340,9 @@ def render_history_page(m, hist, root="../"):
         f'<div class="hist-body">{format_hist_body(body_lines)}</div>'
         f'<footer class="folio"><a href="{m["slug"]}.html">← 回本期</a>'
         f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · 历史</span>'
-        f'<a href="{root}zhiguai.html">小灶</a></footer></div>'
+        f'<a href="{root}xiaozao.html">小灶</a></footer></div>'
     )
-    return page(f'历史 · {disp}', body, root, active="zhiguai")
+    return page(f'历史 · {disp}', body, root, active="xiaozao")
 
 
 def render_preamble(preamble):
@@ -378,9 +387,9 @@ def _zg_one(domain, title, body_lines):
 
 def page(title, body, root, active=None, wrap_main=True):
     nav_links = [
-        ("index.html", "刊架", "home"),
-        ("archive.html", "往期", "archive"),
-        ("zhiguai.html", "小灶", "zhiguai"),
+        ("index.html", "首页", "home"),
+        ("rizhi.html", "日知", "rizhi"),
+        ("xiaozao.html", "小灶", "xiaozao"),
     ]
     links_html = "".join(
         f'<a href="{root}{href}" class="nav-link{" active" if active == key else ""}">{label}</a>'
@@ -472,11 +481,52 @@ def slot_card(slot, m, body, featured=False):
     )
 
 
-def rack_html(issues, days):
+def parse_xz(p):
+    """Parse a 小灶 source md: #日期/#时段/#专区/#标题 + body."""
+    lines = p.read_text(encoding="utf-8").split("\n")
+    meta = {}
+    while lines and re.match(r"#\s*[^\s:：]+[:：]", lines[0]):
+        k, v = re.split(r"[:：]", lines.pop(0)[1:], maxsplit=1)
+        meta[k.strip()] = v.strip()
+    zone_name = meta.get("专区", "灵异志怪")
+    zkey = ZONE_KEY.get(zone_name)
+    if not zkey:
+        # fuzzy
+        for key, name, _ in ZONES:
+            if key in zone_name or name in zone_name or zone_name in name:
+                zkey = key
+                zone_name = name
+                break
+        zkey = zkey or "zhiguai"
+        zone_name = next(n for k, n, _ in ZONES if k == zkey)
+    meta["专区"] = zone_name
+    meta["zkey"] = zkey
+    meta["标题"] = meta.get("标题") or p.stem
+    meta["日期"] = meta.get("日期") or p.stem[:10]
+    meta["时段"] = SLOT.get(meta.get("时段", ""), meta.get("时段", "")) or "午间"
+    meta["slug"] = p.stem
+    body = "\n".join(lines).strip()
+    return meta, body
+
+
+def load_xz():
+    items = [parse_xz(p) for p in sorted(XZ_SRC.glob("*.md"))]
+    items.sort(key=lambda x: (x[0]["日期"], ORDER.get(x[0]["时段"], 9), x[0]["slug"]))
+    return items
+
+
+def _xz_hook_line(body, n=52):
+    for l in body.split("\n"):
+        s = strip_md(l)
+        if s and not s.startswith("来源") and not s.startswith("##"):
+            return _clip(s, n)
+    return ""
+
+
+def _today_status(issues):
     latest_m = issues[-1][0]
     today = latest_m["日期"]
     today_map = {m["slot"]: (m, b) for m, b in issues if m["日期"] == today}
-    # 强调卡：今日最新且带双头条的一场，否则今日最新一场
     feat = None
     for slot in ("晚间", "午间", "上午"):
         if slot in today_map and split_sections(today_map[slot][1])[1]:
@@ -495,7 +545,77 @@ def rack_html(issues, days):
         status += " · " + "／".join(pend) + "待刊"
     t = datetime.date.fromisoformat(today)
     vol_date = f"{t.year} · {t.month} · {t.day}"
+    return today, today_map, cards, status, t, vol_date
 
+
+def _latest_by_zone(xz_items):
+    """zkey -> latest (meta, body)."""
+    out = {}
+    for m, b in reversed(xz_items):
+        out.setdefault(m["zkey"], (m, b))
+    return out
+
+
+def home_html(issues, days, xz_items):
+    today, today_map, cards, status, t, vol_date = _today_status(issues)
+    latest = _latest_by_zone(xz_items)
+    zone_rows = []
+    for key, name, desc in ZONES:
+        if key in latest:
+            m, b = latest[key]
+            hook = _xz_hook_line(b) or m["标题"]
+            href = ZONE_PAGE[key]
+            if key == "history":
+                href = f'xiaozao/history-{m["slug"]}.html'
+            zone_rows.append(
+                f'<a class="xz-hook xz-{key}" href="{href}">'
+                f'<span class="xz-k">{name[:2]}</span>'
+                f'<span class="xz-t">{html.escape(m["标题"])}</span>'
+                f'<span class="xz-h">{html.escape(_clip(hook, 56))}</span></a>'
+            )
+        else:
+            zone_rows.append(
+                f'<div class="xz-hook xz-{key} pending">'
+                f'<span class="xz-k">{name[:2]}</span>'
+                f'<span class="xz-t">{name}</span>'
+                f'<span class="xz-h">待刊</span></div>'
+            )
+
+    return f"""<div class="home">
+<header class="rack-mast"><div>
+<div class="vol">VOL. 01 · {today}</div><h1 class="rack-title">日知</h1></div>
+<div class="rack-sub"><strong>{vol_date}</strong>周{WD[t.weekday()]} · 知识分享<br>{status}</div></header>
+
+<section class="home-col" id="rizhi" aria-labelledby="rizhi-h">
+<header class="col-mast col-rizhi">
+<div class="col-kicker">栏目一</div>
+<h2 id="rizhi-h" class="col-title">日知</h2>
+<p class="col-desc">每日三次知识分享 · 头条与领域速览</p>
+</header>
+<section class="rack-section" aria-labelledby="rz-today-h"><div class="rack-section-head">
+<h3 id="rz-today-h">今日刊节选</h3><span class="hint">{dlabel(today)}</span></div>
+<div class="today-grid">{cards}</div></section>
+<div class="archive-strip"><div class="copy"><strong>日知主页</strong>今日刊 · 近日四则 · 往期</div>
+<a class="go" href="rizhi.html">进入日知 →</a></div>
+</section>
+
+<section class="home-col home-col-xz" id="xiaozao" aria-labelledby="xiaozao-h">
+<header class="col-mast col-xiaozao">
+<div class="col-kicker">栏目二</div>
+<h2 id="xiaozao-h" class="col-title">小灶</h2>
+<p class="col-desc">灵异志怪 · 传统民俗 · 神话传说 · 历史人物</p>
+</header>
+<section class="rack-section" aria-labelledby="xz-today-h"><div class="rack-section-head">
+<h3 id="xz-today-h">四专区最新</h3><span class="hint">{dlabel(today)}</span></div>
+<div class="xz-today-grid">{"".join(zone_rows)}</div></section>
+<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶主页</strong>四专区 · 按日浏览</div>
+<a class="go" href="xiaozao.html">进入小灶 →</a></div>
+</section>
+</div>"""
+
+
+def rizhi_rack_html(issues, days):
+    today, today_map, cards, status, t, vol_date = _today_status(issues)
     recent = []
     for d in sorted((d for d in days if d < today), reverse=True)[:4]:
         items = sorted(days[d], key=lambda x: (ORDER.get(x[0]["slot"], 9), x[0]["slug"]))
@@ -509,20 +629,17 @@ def rack_html(issues, days):
             f'<article class="day-card"><h3 class="day-date">{td.month}月{td.day}日'
             f'<span class="dow">周{WD[td.weekday()]}</span></h3><ul>{li}</ul></article>'
         )
-
-    return f"""<div class="home"><header class="rack-mast"><div>
+    return f"""<div class="home page-wide"><header class="rack-mast"><div>
 <div class="vol">VOL. 01 · {today}</div><h1 class="rack-title">日知</h1></div>
-<div class="rack-sub"><strong>{vol_date}</strong>周{WD[t.weekday()]} · 知识分享<br>{status}</div></header>
+<div class="rack-sub"><strong>{vol_date}</strong>周{WD[t.weekday()]} · 日知主页<br>{status}</div></header>
 <section class="rack-section" aria-labelledby="today-h"><div class="rack-section-head">
 <h2 id="today-h">今日刊</h2><span class="hint">{dlabel(today)}</span></div>
 <div class="today-grid">{cards}</div></section>
 <section class="rack-section" aria-labelledby="recent-h"><div class="rack-section-head">
-<h2 id="recent-h">近日</h2><a class="hint" href="archive.html">全部目录 →</a></div>
+<h2 id="recent-h">近日四则</h2><a class="hint" href="archive.html">日知往期 →</a></div>
 <div class="recent-grid">{"".join(recent)}</div></section>
-<div class="archive-strip"><div class="copy"><strong>往期</strong>共 {len(issues)} 期 · 按日编排</div>
-<a class="go" href="archive.html">全部目录 →</a></div>
-<div class="zg-blurb"><span>小灶：志怪＋民俗＋神话在内页；中国历史人物志单独一页。</span>
-<a href="zhiguai.html">小灶 →</a></div></div>"""
+<div class="archive-strip"><div class="copy"><strong>日知往期</strong>共 {len(issues)} 期 · 按日编排</div>
+<a class="go" href="archive.html">打开往期 →</a></div></div>"""
 
 
 def archive_html(issues, days):
@@ -544,21 +661,225 @@ def archive_html(issues, days):
         + "</nav>"
     )
     return (
-        '<div class="archive-page"><a class="back" href="index.html">← 回刊架</a>'
-        f'<div class="archive-block"><h2>全部目录</h2>'
-        f'<p class="count">共 {len(issues)} 期 · 按日编排 · 亦可 <a href="zhiguai.html">小灶</a></p>'
+        '<div class="archive-page"><a class="back" href="rizhi.html">← 回日知主页</a>'
+        f'<div class="archive-block"><h2>日知往期</h2>'
+        f'<p class="count">共 {len(issues)} 期 · 按日编排</p>'
         f"{jump}{''.join(rows)}</div></div>"
     )
+
+
+def xiaozao_home_html(xz_items):
+    latest = _latest_by_zone(xz_items)
+    # recent 4 across all zones
+    recent = list(reversed(xz_items))[:4]
+    cards = []
+    for key, name, desc in ZONES:
+        page = ZONE_PAGE[key]
+        if key in latest:
+            m, b = latest[key]
+            hook = _xz_hook_line(b, 64) or m["标题"]
+            extra = ""
+            if key == "history":
+                page = f'xiaozao/history-{m["slug"]}.html'
+                extra = f'<a class="zone-hist" href="{page}">读完整人物志 →</a>'
+                page = ZONE_PAGE[key]  # zone list page for 进入专区
+            cards.append(
+                f'<a class="zone-card zone-{key}" href="{ZONE_PAGE[key]}">'
+                f'<div class="zone-kicker">专区</div>'
+                f'<h3 class="zone-title">{name}</h3>'
+                f'<p class="zone-desc">{desc}</p>'
+                f'<div class="zone-latest"><span class="zl-label">最新</span>'
+                f'<span class="zl-title">{html.escape(m["标题"])}</span>'
+                f'<span class="zl-hook">{html.escape(hook)}</span></div>'
+                f'<span class="zone-go">进入专区 →</span></a>'
+            )
+        else:
+            cards.append(
+                f'<div class="zone-card zone-{key} pending">'
+                f'<div class="zone-kicker">专区</div>'
+                f'<h3 class="zone-title">{name}</h3>'
+                f'<p class="zone-desc">{desc}</p>'
+                f'<div class="zone-latest"><span class="zl-label">最新</span><span class="zl-hook">待刊</span></div>'
+                f'<span class="zone-go">待刊</span></div>'
+            )
+    recent_html = "".join(
+        f'<a class="xz-day-card" href="{ZONE_PAGE[m["zkey"]]}">'
+        f'<div class="xz-day-meta">{m["日期"][5:].replace("-","/")} · {m["时段"]} · {next(n for k,n,_ in ZONES if k==m["zkey"])}</div>'
+        f'<div class="xz-day-hook">{html.escape(_clip(m["标题"], 36))}</div>'
+        f'<span class="xz-day-go">打开 →</span></a>'
+        for m, b in recent
+    )
+    today = xz_items[-1][0]["日期"] if xz_items else ""
+    t = datetime.date.fromisoformat(today) if today else datetime.date.today()
+    vol_date = f"{t.year} · {t.month} · {t.day}"
+    return f"""<div class="home home-xz-page page-wide"><header class="rack-mast"><div>
+<div class="vol">VOL. 01 · {today}</div><h1 class="rack-title">小灶</h1></div>
+<div class="rack-sub"><strong>{vol_date}</strong>周{WD[t.weekday()]} · 小灶主页<br>四专区独立连载</div></header>
+<section class="rack-section" aria-labelledby="zones-h"><div class="rack-section-head">
+<h2 id="zones-h">四专区</h2><a class="hint" href="xiaozao-dates.html">按日浏览 →</a></div>
+<div class="zone-grid">{"".join(cards)}</div></section>
+<section class="rack-section" aria-labelledby="xz-recent-h"><div class="rack-section-head">
+<h2 id="xz-recent-h">近日更新</h2><span class="hint">跨专区</span></div>
+<div class="xz-recent-grid">{recent_html}</div></section>
+<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶日期页</strong>共 {len(xz_items)} 则 · 可按专区筛选</div>
+<a class="go" href="xiaozao-dates.html">打开日期页 →</a></div></div>"""
+
+
+def xiaozao_zone_html(zkey, xz_items):
+    name = next(n for k, n, _ in ZONES if k == zkey)
+    desc = next(d for k, _, d in ZONES if k == zkey)
+    items = [(m, b) for m, b in xz_items if m["zkey"] == zkey]
+    items = list(reversed(items))
+    lis = []
+    for m, b in items:
+        hook = _xz_hook_line(b, 72)
+        if zkey == "history":
+            href = f'xiaozao/history-{m["slug"]}.html'
+            go = "读人物志 →"
+        else:
+            href = f'xiaozao/entry-{m["slug"]}.html'
+            go = "阅读 →"
+        lis.append(
+            f'<li class="xz-entry">'
+            f'<a href="{href}">'
+            f'<div class="meta">{dlabel(m["日期"])} · {m["时段"]}</div>'
+            f'<div class="zg-title">{html.escape(m["标题"])}</div>'
+            f'<div class="teaser">{html.escape(hook)}</div>'
+            f'<span class="go-mini">{go}</span></a></li>'
+        )
+    tabs = "".join(
+        f'<a class="ztab{" active" if k==zkey else ""}" href="{ZONE_PAGE[k]}">{n}</a>'
+        for k, n, _ in ZONES
+    )
+    return (
+        f'<div class="archive-page zone-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
+        f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
+        f'<div class="archive-block"><h2>{name}</h2>'
+        f'<p class="count">{desc} · 共 {len(items)} 则</p>'
+        f'<ul class="zg-list">{"".join(lis)}</ul></div></div>'
+    )
+
+
+def xiaozao_dates_html(xz_items, filter_key=None):
+    by = {}
+    for m, b in xz_items:
+        if filter_key and m["zkey"] != filter_key:
+            continue
+        by.setdefault(m["日期"], []).append((m, b))
+    tabs = ['<a class="ztab%s" href="xiaozao-dates.html">全部</a>' % (" active" if not filter_key else "")]
+    for k, n, _ in ZONES:
+        tabs.append(
+            f'<a class="ztab{" active" if filter_key==k else ""}" href="xiaozao-dates.html?zone={k}">{n}</a>'
+        )
+    # static filter pages instead of querystring for file:// compatibility
+    # rebuild tabs to use xiaozao-dates-{key}.html
+    tabs = [
+        f'<a class="ztab{" active" if not filter_key else ""}" href="xiaozao-dates.html">全部</a>'
+    ]
+    for k, n, _ in ZONES:
+        href = "xiaozao-dates.html" if False else f"xiaozao-dates-{k}.html"
+        if k == "zhiguai":
+            pass
+        tabs.append(
+            f'<a class="ztab{" active" if filter_key==k else ""}" href="xiaozao-dates-{k}.html">{n}</a>'
+        )
+
+    rows = []
+    for d in sorted(by, reverse=True):
+        items = sorted(by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"]))
+        lis = []
+        for m, b in items:
+            name = next(n for k, n, _ in ZONES if k == m["zkey"])
+            hook = _xz_hook_line(b, 48)
+            if m["zkey"] == "history":
+                href = f'xiaozao/history-{m["slug"]}.html'
+            else:
+                href = f'xiaozao/entry-{m["slug"]}.html'
+            lis.append(
+                f'<li><a href="{href}">'
+                f'<span class="slot xz-slot xz-{m["zkey"]}">{name[:2]}</span>'
+                f'<span class="entry"><span class="meta">{m["时段"]} · {html.escape(m["标题"])}</span>'
+                f'<span class="teaser">{html.escape(hook)}</span></span></a></li>'
+            )
+        rows.append(
+            f'<section class="day" id="xz{d}"><h2 class="date">{dlabel(d)}</h2>'
+            f'<ul class="list">{"".join(lis)}</ul></section>'
+        )
+    title = "小灶日期页" if not filter_key else f'小灶日期页 · {next(n for k,n,_ in ZONES if k==filter_key)}'
+    return (
+        f'<div class="archive-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
+        f'<nav class="zone-tabs" aria-label="专区筛选">{"".join(tabs)}</nav>'
+        f'<div class="archive-block"><h2>{title}</h2>'
+        f'<p class="count">共 {sum(len(v) for v in by.values())} 则 · 按日编排</p>'
+        f'{"".join(rows)}</div></div>'
+    )
+
+
+def render_xz_entry_page(m, body, root="../"):
+    name = next(n for k, n, _ in ZONES if k == m["zkey"])
+    # body: ## headings + paras
+    html_parts = []
+    for block in re.split(r"\n(?=## )", body):
+        block = block.strip()
+        if not block:
+            continue
+        if block.startswith("## "):
+            first, *rest = block.split("\n", 1)
+            html_parts.append(f"<h2>{html.escape(first[3:].strip())}</h2>")
+            if rest:
+                html_parts.append(body_to_paras(rest[0].split("\n")))
+        else:
+            html_parts.append(body_to_paras(block.split("\n")))
+    inner = (
+        f'<div class="issue-page">'
+        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
+        f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · {html.escape(m["时段"])} · {name}</span></div>'
+        f'<header class="issue-head"><div class="issue-kicker">小灶 · {name}</div>'
+        f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
+        f'<div class="piece-body">{"".join(html_parts)}</div>'
+        f'<footer class="folio"><a href="{root}{ZONE_PAGE[m["zkey"]]}">← {name}</a>'
+        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])}</span>'
+        f'<a href="{root}xiaozao.html">小灶主页</a></footer></div>'
+    )
+    return page(f'{name} · {m["标题"]}', inner, root, active="xiaozao")
+
+
+def render_xz_history_page(m, body, root="../"):
+    # reuse format_hist_body on lines
+    lines = []
+    for l in body.split("\n"):
+        if l.startswith("## "):
+            lines.append(l[3:])
+        else:
+            lines.append(l)
+    hist_body = format_hist_body(lines)
+    inner = (
+        f'<div class="issue-page hist-page">'
+        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
+        f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · 历史人物</span></div>'
+        f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物</div>'
+        f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
+        f'<div class="hist-serial">人物志 · 可按篇幅分日连载</div>'
+        f'<div class="hist-body">{hist_body}</div>'
+        f'<footer class="folio"><a href="{root}xiaozao-history.html">← 历史人物</a>'
+        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · 历史</span>'
+        f'<a href="{root}xiaozao.html">小灶主页</a></footer></div>'
+    )
+    return page(f'历史 · {m["标题"]}', inner, root, active="xiaozao")
+
 
 
 def main():
     issues = [parse(p) for p in sorted(SRC.glob("2*.md"))]
     (OUT / "issues").mkdir(exist_ok=True)
+    xz_dir = OUT / "xiaozao"
+    xz_dir.mkdir(exist_ok=True)
     for f in (OUT / "issues").glob("*.html"):
         f.unlink()
+    for f in xz_dir.glob("*.html"):
+        f.unlink()
     issues.sort(key=lambda x: x[0]["slug"])
-
-    zhiguai_entries = []
+    xz_items = load_xz()
 
     for idx, (m, body) in enumerate(issues):
         label = m.get("期次") or "日知连载"
@@ -577,9 +898,9 @@ def main():
         nav += "</div>"
 
         preamble, headlines, pieces, zg, signoff = split_sections(body)
+        # 预览：小灶已独立，内页不渲染志怪／历史 teaser
         date_parts = m["日期"].split("-")
         vol_date = f"{date_parts[0]} · {int(date_parts[1])} · {int(date_parts[2])}"
-
         mast = (
             f'<div class="issue-mast"><a class="brand-sm" href="../index.html">日知</a>'
             f'<span class="meta-sm">{vol_date} · {html.escape(m["slot"])}</span></div>'
@@ -596,14 +917,7 @@ def main():
             + render_preamble(preamble)
             + render_double_lead(headlines)
             + render_piece_grid(pieces)
-            )
-        hist_block = next((b for b in (zg or []) if classify_xiaozao(b[1], b[2])[0] == "历史"), None)
-        hist_href = f'{m["slug"]}-history.html' if hist_block else None
-        article += render_zhiguai(zg, "../zhiguai.html", hist_href=hist_href)
-        if hist_block:
-            (OUT / "issues" / f'{m["slug"]}-history.html').write_text(
-                render_history_page(m, hist_block[1:], root="../"), encoding="utf-8"
-            )
+        )
         if signoff:
             article += f'<p class="signoff">{html.escape(signoff)}</p>'
         article += (
@@ -611,61 +925,72 @@ def main():
             f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · {html.escape(m["slot"])}</span>'
             f"<span>日知</span></footer>"
         )
-
         (OUT / "issues" / f'{m["slug"]}.html').write_text(
             page(
                 f'{m.get("日期")} {m["slot"]} · {m["署名"]}',
                 f'<div class="issue-page">{article}</div>' + nav,
                 "../",
-                active="home",
+                active="rizhi",
             ),
             encoding="utf-8",
         )
-        for title, excerpt in (extract_zhiguai(body) or []):
-            zhiguai_entries.append((m, title, excerpt))
 
     days = {}
     for m, body in issues:
         days.setdefault(m["日期"], []).append((m, first_piece_teaser(body)))
 
+    # 小灶独立条目页／历史页
+    for m, body in xz_items:
+        if m["zkey"] == "history":
+            (xz_dir / f'history-{m["slug"]}.html').write_text(
+                render_xz_history_page(m, body, root="../"), encoding="utf-8"
+            )
+        else:
+            (xz_dir / f'entry-{m["slug"]}.html').write_text(
+                render_xz_entry_page(m, body, root="../"), encoding="utf-8"
+            )
+
     (OUT / "index.html").write_text(
-        page(
-            "Lyn每日三次知识分享",
-            rack_html(issues, days),
-            "",
-            active="home",
-        ),
+        page("Lyn每日三次知识分享", home_html(issues, days, xz_items), "", active="home"),
+        encoding="utf-8",
+    )
+    (OUT / "rizhi.html").write_text(
+        page("日知主页", rizhi_rack_html(issues, days), "", active="rizhi"),
         encoding="utf-8",
     )
     (OUT / "archive.html").write_text(
-        page("往期目录 · 日知", archive_html(issues, days), "", active="archive"),
+        page("日知往期", archive_html(issues, days), "", active="rizhi"),
+        encoding="utf-8",
+    )
+    (OUT / "xiaozao.html").write_text(
+        page("小灶主页", xiaozao_home_html(xz_items), "", active="xiaozao"),
+        encoding="utf-8",
+    )
+    for key, name, _ in ZONES:
+        (OUT / ZONE_PAGE[key]).write_text(
+            page(f"小灶 · {name}", xiaozao_zone_html(key, xz_items), "", active="xiaozao"),
+            encoding="utf-8",
+        )
+    (OUT / "xiaozao-dates.html").write_text(
+        page("小灶日期页", xiaozao_dates_html(xz_items), "", active="xiaozao"),
+        encoding="utf-8",
+    )
+    for key, name, _ in ZONES:
+        (OUT / f"xiaozao-dates-{key}.html").write_text(
+            page(f"小灶日期页 · {name}", xiaozao_dates_html(xz_items, filter_key=key), "", active="xiaozao"),
+            encoding="utf-8",
+        )
+    (OUT / "zhiguai.html").write_text(
+        '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">'
+        '<meta http-equiv="refresh" content="0;url=xiaozao.html">'
+        '<title>小灶</title></head><body><p><a href="xiaozao.html">前往小灶主页 →</a></p></body></html>',
         encoding="utf-8",
     )
 
-    zg_items = []
-    for m, title, excerpt in reversed(zhiguai_entries):
-        zg_items.append(
-            f'<li class="zg-entry">'
-            f'<a href="issues/{m["slug"]}.html#zhiguai">'
-            f'<div class="meta"><span class="who who-{m["署名"]}">{m["署名"]}</span> '
-            f'{dlabel(m["日期"])} · {m["slot"]}</div>'
-            f'<div class="zg-title">{html.escape(title)}</div>'
-            f'<div class="teaser">{html.escape(excerpt)}</div>'
-            f"</a></li>"
-        )
-    zg_body = (
-        '<header class="issue-head"><div class="kicker">小灶</div>'
-        '<h1 class="issue-title">小灶</h1>'
-        '<p class="intro" style="margin:0">每期知识分享的小灶（志怪／民俗／神话）与历史专页，按时间倒序汇于此。'
-        "点开可跳到该期全文对应段落。</p></header>"
-        f'<p class="count">共 {len(zhiguai_entries)} 则</p>'
-        f'<ul class="zg-list">{"".join(zg_items)}</ul>'
-    )
-    (OUT / "zhiguai.html").write_text(
-        page("小灶", zg_body, "", active="zhiguai"), encoding="utf-8"
+    print(
+        f"built {len(issues)} issues (no inline 小灶), {len(xz_items)} xiaozao entries -> {OUT}"
     )
 
-    print(f"built {len(issues)} issues, {len(zhiguai_entries)} zhiguai -> {OUT}")
 
 
 if __name__ == "__main__":

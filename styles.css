@@ -386,3 +386,43 @@ a.slot-card:hover { background: color-mix(in srgb, var(--acc) 5%, var(--paper));
   .nav-right { gap: 0.75rem; flex-shrink: 0; }
   .nav-link { white-space: nowrap; letter-spacing: 0.06em; }
 }
+
+/* 小灶双篇 */
+.xz-grid{display:grid;gap:1.4rem}
+.xz-grid.two{grid-template-columns:1fr 1fr}
+.xz-grid.three{grid-template-columns:1fr 1fr 1fr}
+.xz-grid.four{grid-template-columns:1fr 1fr}
+@media(max-width:980px){.xz-grid.four,.xz-grid.three,.xz-grid.two{grid-template-columns:1fr}}
+.xz-card{padding-top:.2rem}
+.xz-grid.two .xz-card + .xz-card,.xz-grid.three .xz-card + .xz-card{border-left:1px dashed color-mix(in srgb,var(--zg) 45%,transparent);padding-left:1.2rem}
+.xz-grid.four .xz-card{border-top:1px dashed color-mix(in srgb,var(--zg) 35%,transparent);padding-top:1rem}
+.xz-grid.four .xz-card:nth-child(-n+2){border-top:0;padding-top:0}
+.xz-grid.four .xz-card:nth-child(odd){padding-right:1rem}
+.xz-grid.four .xz-card:nth-child(even){padding-left:1rem;border-left:1px dashed color-mix(in srgb,var(--zg) 45%,transparent)}
+@media(max-width:980px){.xz-grid.two .xz-card + .xz-card,.xz-grid.three .xz-card + .xz-card{border-left:0;padding-left:0;border-top:1px dashed color-mix(in srgb,var(--zg) 45%,transparent);padding-top:1.2rem}}
+.xz-sub{display:inline-block;font-size:.7rem;letter-spacing:.35em;padding:.1rem .5rem;margin-bottom:.6rem;border:1px solid var(--zg);color:var(--zg)}
+.xz-folk .xz-sub{background:var(--zg);color:var(--paper)}
+.xz-myth .xz-sub{border-style:dashed}
+.xz-hist .xz-sub{letter-spacing:.25em}
+
+/* 历史专页入口 */
+.hist-teaser{
+  display:grid; grid-template-columns:1fr auto; gap:.35rem 1.2rem; align-items:center;
+  margin-top:1.4rem; padding:1.2rem 1.4rem; border:1px solid var(--ink);
+  text-decoration:none; color:inherit; background:var(--paper);
+}
+.hist-teaser:hover{background:color-mix(in srgb, var(--zg) 8%, var(--paper))}
+.ht-kicker{grid-column:1/-1; font-size:.72rem; letter-spacing:.4em; color:var(--zg)}
+.ht-title{font-size:1.15rem; font-weight:600; letter-spacing:.04em; line-height:1.45}
+.ht-go{font-size:.85rem; letter-spacing:.12em; color:var(--accent, #a63d2f); white-space:nowrap}
+.hist-page .hist-body{font-size:1.05rem; line-height:1.85; color:var(--ink-soft)}
+.hist-page .hist-body p{margin:0 0 1rem}
+.hist-page .hist-body strong{color:var(--ink)}
+
+.hist-page .hist-body strong{display:block;margin:1.4rem 0 .55rem;font-size:1.05rem;letter-spacing:.08em}
+.hist-serial{display:inline-block;margin:.4rem 0 1rem;padding:.25rem .7rem;border:1px solid var(--zg);font-size:.72rem;letter-spacing:.25em;color:var(--zg)}
+.hist-page blockquote,.hist-page .hist-body > p:first-child{border-left:3px solid var(--zg);padding:.4rem 0 .4rem 1rem;margin:0 0 1.2rem;color:var(--ink-soft);background:color-mix(in srgb,var(--zg) 6%,transparent)}
+
+.hist-quote{margin:1rem 0;padding:1rem 1.1rem;border:1px dashed color-mix(in srgb,var(--zg) 55%,transparent);background:color-mix(in srgb,var(--zg) 5%,var(--paper))}
+.hist-quote .q-src{display:block;font-size:.72rem;letter-spacing:.2em;color:var(--zg);margin-bottom:.5rem}
+.hist-baihua{margin:.6rem 0 0;padding-top:.6rem;border-top:1px dotted color-mix(in srgb,var(--zg) 40%,transparent);color:var(--ink)}

@@ -99,7 +99,7 @@ def split_sections(body):
                 kind, domain, title = "headline", hm.group(1).strip(), hm.group(2).strip()
             else:
                 domain, title = pm.group(1).strip(), pm.group(2).strip()
-                kind = "zhiguai" if "志怪" in domain or "志怪" in title else "piece"
+                kind = "zhiguai" if any(k in domain or k in title for k in ("志怪", "小灶", "民俗")) else "piece"
             i += 1
             body_lines = []
             while i < len(lines):
@@ -231,8 +231,8 @@ def render_zhiguai(zg, column_href):
             pass
     return (
         f'<aside class="zg-spread" id="zhiguai">'
-        f'<div class="tag-row"><span class="zg-tag">志怪小灶</span>'
-        f'<a class="col-link" href="{column_href}">查看专栏</a></div>'
+        f'<div class="tag-row"><span class="zg-tag">小灶</span>'
+        f'<a class="col-link" href="{column_href}">查看小灶</a></div>'
         f'<h3 class="zg-title">{html.escape(display)}</h3>'
         f'<div class="zg-body">{body_to_paras(body_lines)}</div>'
         f"</aside>"
@@ -277,7 +277,7 @@ def page(title, body, root, active=None, wrap_main=True):
     nav_links = [
         ("index.html", "刊架", "home"),
         ("archive.html", "往期", "archive"),
-        ("zhiguai.html", "志怪专栏", "zhiguai"),
+        ("zhiguai.html", "小灶", "zhiguai"),
     ]
     links_html = "".join(
         f'<a href="{root}{href}" class="nav-link{" active" if active == key else ""}">{label}</a>'
@@ -418,8 +418,8 @@ def rack_html(issues, days):
 <div class="recent-grid">{"".join(recent)}</div></section>
 <div class="archive-strip"><div class="copy"><strong>往期</strong>共 {len(issues)} 期 · 按日编排</div>
 <a class="go" href="archive.html">全部目录 →</a></div>
-<div class="zg-blurb"><span>志怪小灶：每期附一篇聊斋／子不语等志怪短篇。</span>
-<a href="zhiguai.html">志怪专栏 →</a></div></div>"""
+<div class="zg-blurb"><span>小灶：每期附一篇志怪或民俗短篇（聊斋／子不语／地方传承等）。</span>
+<a href="zhiguai.html">小灶 →</a></div></div>"""
 
 
 def archive_html(issues, days):
@@ -443,7 +443,7 @@ def archive_html(issues, days):
     return (
         '<div class="archive-page"><a class="back" href="index.html">← 回刊架</a>'
         f'<div class="archive-block"><h2>全部目录</h2>'
-        f'<p class="count">共 {len(issues)} 期 · 按日编排 · 亦可 <a href="zhiguai.html">志怪专栏</a></p>'
+        f'<p class="count">共 {len(issues)} 期 · 按日编排 · 亦可 <a href="zhiguai.html">小灶</a></p>'
         f"{jump}{''.join(rows)}</div></div>"
     )
 
@@ -547,15 +547,15 @@ def main():
             f"</a></li>"
         )
     zg_body = (
-        '<header class="issue-head"><div class="kicker">专栏</div>'
-        '<h1 class="issue-title">志怪小灶</h1>'
-        '<p class="intro" style="margin:0">每期知识分享末尾的志怪／民俗短篇，按时间倒序汇于此。'
+        '<header class="issue-head"><div class="kicker">小灶</div>'
+        '<h1 class="issue-title">小灶</h1>'
+        '<p class="intro" style="margin:0">每期知识分享末尾的志怪与民俗短篇，按时间倒序汇于此。'
         "点开可跳到该期全文对应段落。</p></header>"
         f'<p class="count">共 {len(zhiguai_entries)} 则</p>'
         f'<ul class="zg-list">{"".join(zg_items)}</ul>'
     )
     (OUT / "zhiguai.html").write_text(
-        page("志怪小灶 · 专栏", zg_body, "", active="zhiguai"), encoding="utf-8"
+        page("小灶", zg_body, "", active="zhiguai"), encoding="utf-8"
     )
 
     print(f"built {len(issues)} issues, {len(zhiguai_entries)} zhiguai -> {OUT}")

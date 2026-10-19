@@ -275,7 +275,8 @@ def extract_zhiguai(body):
 
 def page(title, body, root, active=None, wrap_main=True):
     nav_links = [
-        ("index.html", "目录", "home"),
+        ("index.html", "刊架", "home"),
+        ("archive.html", "往期", "archive"),
         ("zhiguai.html", "志怪专栏", "zhiguai"),
     ]
     links_html = "".join(
@@ -289,7 +290,7 @@ def page(title, body, root, active=None, wrap_main=True):
 <body><nav class="top"><a href="{root}index.html" class="brand">日知 · Lyn每日三次知识分享</a>
 <div class="nav-right">{links_html}
 <button type="button" onclick="var d=document.documentElement;d.dataset.theme=d.dataset.theme=='dark'?'light':'dark';localStorage.theme=d.dataset.theme" aria-label="切换主题">◐</button></div></nav>
-{inner}<footer>日知连载 · 拓往期已归档 · 本地预览</footer></body></html>"""
+{inner}<footer>日知 · Lyn每日三次知识分享</footer></body></html>"""
 
 
 def first_piece_teaser(body):
@@ -309,74 +310,119 @@ def first_piece_teaser(body):
     return first
 
 
-def cover_html(issues, days):
-    latest_m, latest_body = issues[-1]
-    preamble, headlines, pieces, zg, _ = split_sections(latest_body)
-    # lede: first headline or first piece
+def _clip(t, n):
+    t = strip_md(t)
+    return t if len(t) <= n else t[:n] + "…"
+
+
+def _short_title(teaser):
+    """'领域｜标题' -> '标题'；去掉 '1. ' 序号。"""
+    t = re.sub(r"^\d+\.\s*", "", strip_md(teaser))
+    return t.split("｜", 1)[1] if "｜" in t else t
+
+
+def _first_body_line(body_lines):
+    for l in body_lines:
+        x = strip_md(l)
+        if x and not x.startswith("来源"):
+            return x
+    return ""
+
+
+def slot_card(slot, m, body, featured=False):
+    if m is None:
+        return (
+            f'<div class="slot-card pending" aria-disabled="true">'
+            f'<div class="slot-label"><span>{slot}</span><span class="time">待刊</span></div>'
+            f'<div class="who-line"><span class="who">日知</span> · 日知连载</div>'
+            f'<h3>{slot}场尚未付印</h3>'
+            f'<p class="tease">刊出后会出现在这里，并同步进近日小卡。</p>'
+            f'<span class="open">待刊 · 请稍候</span></div>'
+        )
+    _, headlines, pieces, _, _ = split_sections(body)
+    href = f'issues/{m["slug"]}.html'
+    who = html.escape(m["署名"])
+    label = html.escape(m.get("期次") or "日知连载")
+    when = html.escape(m.get("计划时间", ""))
     if headlines:
-        lede_domain, lede_title = headlines[0][1], headlines[0][2]
-        lede_kind = "头条"
+        doms = " × ".join(h[1] for h in headlines[:2])
+        h3 = f"双头条 · {doms}"
+        rows = "".join(
+            f'<div class="row"><span class="tag">{html.escape(h[1])}</span>'
+            f'<span>{html.escape(_clip(h[2], 46))}</span></div>'
+            for h in headlines[:2]
+        )
+        inner = f'<div class="dual-tease">{rows}</div>'
     elif pieces:
-        lede_domain, lede_title = pieces[0][1], pieces[0][2]
-        lede_kind = pieces[0][1]
+        h3 = _clip(pieces[0][2], 30)
+        inner = f'<p class="tease">{html.escape(_clip(_first_body_line(pieces[0][3]), 72))}</p>'
     else:
-        lede_domain, lede_title, lede_kind = "", first_piece_teaser(latest_body), "最新"
+        h3 = _clip(_short_title(first_piece_teaser(body)), 30) or "本期"
+        inner = '<p class="tease"></p>'
+    cls = "slot-card featured" if featured else "slot-card"
+    return (
+        f'<a class="{cls}" href="{href}">'
+        f'<div class="slot-label"><span>{slot}</span><span class="time">{when}</span></div>'
+        f'<div class="who-line"><span class="who">{who}</span> · {label}</div>'
+        f"<h3>{html.escape(h3)}</h3>{inner}"
+        f'<span class="open">打开本期 →</span></a>'
+    )
 
-    stack_items = []
-    for h in headlines[:4]:
-        stack_items.append(
-            f'<li><span class="cat">{html.escape(h[1])}</span>'
-            f'<a class="hl" href="issues/{latest_m["slug"]}.html">{html.escape(h[2][:48])}</a></li>'
-        )
-    for p in pieces[: max(0, 4 - len(stack_items))]:
-        stack_items.append(
-            f'<li><span class="cat">{html.escape(p[1])}</span>'
-            f'<a class="hl" href="issues/{latest_m["slug"]}.html">{html.escape(p[2][:48])}</a></li>'
-        )
-    if zg and len(stack_items) < 5:
-        stack_items.append(
-            f'<li><span class="cat">志怪</span>'
-            f'<a class="hl" href="issues/{latest_m["slug"]}.html#zhiguai">{html.escape(zg[2][:48])}</a></li>'
-        )
 
+def rack_html(issues, days):
+    latest_m = issues[-1][0]
     today = latest_m["日期"]
-    today_issues = {m["slot"]: m for m, _ in ((x[0], x[1]) for x in [(m, b) for m, b in issues if m["日期"] == today])}
-    # rebuild properly
-    today_map = {}
-    for m, b in issues:
-        if m["日期"] == today:
-            today_map[m["slot"]] = m
+    today_map = {m["slot"]: (m, b) for m, b in issues if m["日期"] == today}
+    # 强调卡：今日最新且带双头条的一场，否则今日最新一场
+    feat = None
+    for slot in ("晚间", "午间", "上午"):
+        if slot in today_map and split_sections(today_map[slot][1])[1]:
+            feat = slot
+            break
+    if feat is None:
+        feat = latest_m["slot"]
+    cards = "".join(
+        slot_card(s, *(today_map.get(s) or (None, "")), featured=(s == feat))
+        for s in ("上午", "午间", "晚间")
+    )
+    published = len(today_map)
+    pend = [s for s in ("上午", "午间", "晚间") if s not in today_map]
+    status = f"今日{'三' if published == 3 else '两' if published == 2 else '一'}场已刊"
+    if pend:
+        status += " · " + "／".join(pend) + "待刊"
+    t = datetime.date.fromisoformat(today)
+    vol_date = f"{t.year} · {t.month} · {t.day}"
 
-    doors = []
-    for slot in ("上午", "午间", "晚间"):
-        if slot in today_map:
-            m = today_map[slot]
-            doors.append(
-                f'<a class="door" href="issues/{m["slug"]}.html">'
-                f'<span class="slot">{slot}</span>'
-                f'<span class="when">{html.escape(m.get("计划时间", m["slot"]))}</span></a>'
-            )
-        else:
-            doors.append(
-                f'<span class="door disabled"><span class="slot">{slot}</span>'
-                f'<span class="when">待刊</span></span>'
-            )
+    recent = []
+    for d in sorted((d for d in days if d < today), reverse=True)[:4]:
+        items = sorted(days[d], key=lambda x: (ORDER.get(x[0]["slot"], 9), x[0]["slug"]))
+        li = "".join(
+            f'<li><a href="issues/{m["slug"]}.html"><span class="s">{m["slot"]}</span>'
+            f'<span class="t">{html.escape(_clip(_short_title(f), 40))}</span></a></li>'
+            for m, f in items
+        )
+        td = datetime.date.fromisoformat(d)
+        recent.append(
+            f'<article class="day-card"><h3 class="day-date">{td.month}月{td.day}日'
+            f'<span class="dow">周{WD[td.weekday()]}</span></h3><ul>{li}</ul></article>'
+        )
 
-    date_parts = latest_m["日期"].split("-")
-    vol_date = f"{date_parts[0]} · {int(date_parts[1])} · {int(date_parts[2])}"
-    cover = f"""<div class="cover-shell"><div class="cover-frame"><div class="cover-inner">
-<header class="masthead"><div class="masthead-left"><div class="vol">VOL. 01 · {latest_m["日期"]}</div>
-<h1 class="cover-title">日知</h1></div>
-<div class="masthead-right"><strong>{vol_date}</strong>{dlabel(latest_m["日期"]).split(" · ")[-1]} · 知识分享<br>每日三场</div></header>
-<div class="lede-block"><div class="lede-kicker">封面 · {html.escape(lede_kind)} · {html.escape(latest_m["slot"])}</div>
-<h2 class="lede-headline">{html.escape(lede_title)}</h2>
-<p class="lede-deck"><a href="issues/{latest_m["slug"]}.html">翻开本期 →</a></p></div>
-<ul class="stack-headlines">{"".join(stack_items)}</ul>
-<nav class="issue-doors" aria-label="本日三场">{"".join(doors)}</nav>
-<footer class="cover-foot"><span>Lyn 每日三次知识分享</span><a href="zhiguai.html">志怪专栏 →</a></footer>
-</div></div></div>"""
+    return f"""<div class="home"><header class="rack-mast"><div>
+<div class="vol">VOL. 01 · {today}</div><h1 class="rack-title">日知</h1></div>
+<div class="rack-sub"><strong>{vol_date}</strong>周{WD[t.weekday()]} · 知识分享<br>{status}</div></header>
+<section class="rack-section" aria-labelledby="today-h"><div class="rack-section-head">
+<h2 id="today-h">今日刊</h2><span class="hint">{dlabel(today)}</span></div>
+<div class="today-grid">{cards}</div></section>
+<section class="rack-section" aria-labelledby="recent-h"><div class="rack-section-head">
+<h2 id="recent-h">近日</h2><a class="hint" href="archive.html">全部目录 →</a></div>
+<div class="recent-grid">{"".join(recent)}</div></section>
+<div class="archive-strip"><div class="copy"><strong>往期</strong>共 {len(issues)} 期 · 按日编排</div>
+<a class="go" href="archive.html">全部目录 →</a></div>
+<div class="zg-blurb"><span>志怪小灶：每期附一篇聊斋／子不语等志怪短篇。</span>
+<a href="zhiguai.html">志怪专栏 →</a></div></div>"""
 
-    # archive
+
+def archive_html(issues, days):
     rows = []
     for d in sorted(days, reverse=True):
         items = sorted(days[d], key=lambda x: (ORDER.get(x[0]["slot"], 9), x[0]["slug"]))
@@ -391,18 +437,15 @@ def cover_html(issues, days):
         )
     jump = (
         '<nav class="jump">'
-        + "".join(
-            f'<a href="#d{d}">{dlabel(d).split(" ")[0]}</a>'
-            for d in sorted(days, reverse=True)
-        )
+        + "".join(f'<a href="#d{d}">{dlabel(d).split(" ")[0]}</a>' for d in sorted(days, reverse=True))
         + "</nav>"
     )
-    archive = (
-        f'<div class="archive-block"><h2>往期目录</h2>'
+    return (
+        '<div class="archive-page"><a class="back" href="index.html">← 回刊架</a>'
+        f'<div class="archive-block"><h2>全部目录</h2>'
         f'<p class="count">共 {len(issues)} 期 · 按日编排 · 亦可 <a href="zhiguai.html">志怪专栏</a></p>'
-        f"{jump}{''.join(rows)}</div>"
+        f"{jump}{''.join(rows)}</div></div>"
     )
-    return cover + archive
 
 
 def main():
@@ -422,7 +465,7 @@ def main():
             if idx
             else "<span></span>"
         )
-        nav += '<a href="../index.html">目录</a>'
+        nav += '<a href="../archive.html">目录</a>'
         nav += (
             f'<a href="{issues[idx+1][0]["slug"]}.html">下一期 →</a>'
             if idx < len(issues) - 1
@@ -455,7 +498,7 @@ def main():
         if signoff:
             article += f'<p class="signoff">{html.escape(signoff)}</p>'
         article += (
-            f'<footer class="folio"><a href="../index.html">← 目录</a>'
+            f'<footer class="folio"><a href="../archive.html">← 目录</a>'
             f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · {html.escape(m["slot"])}</span>'
             f"<span>日知</span></footer>"
         )
@@ -481,10 +524,14 @@ def main():
     (OUT / "index.html").write_text(
         page(
             "Lyn每日三次知识分享",
-            cover_html(issues, days),
+            rack_html(issues, days),
             "",
             active="home",
         ),
+        encoding="utf-8",
+    )
+    (OUT / "archive.html").write_text(
+        page("往期目录 · 日知", archive_html(issues, days), "", active="archive"),
         encoding="utf-8",
     )
 

@@ -399,7 +399,7 @@ def page(title, body, root, active=None, wrap_main=True):
     return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)}</title>
 <link rel="stylesheet" href="{root}styles.css"><script>if(localStorage.theme)document.documentElement.dataset.theme=localStorage.theme</script></head>
-<body><nav class="top"><a href="{root}index.html" class="brand">Justknow · Lyn每日三次知识分享</a>
+<body><nav class="top"><a href="{root}index.html" class="brand">Justknow</a>
 <div class="nav-right">{links_html}
 <button type="button" onclick="var d=document.documentElement;d.dataset.theme=d.dataset.theme=='dark'?'light':'dark';localStorage.theme=d.dataset.theme" aria-label="切换主题">◐</button></div></nav>
 {inner}<footer>Justknow · Lyn每日三次知识分享</footer></body></html>"""
@@ -924,26 +924,44 @@ def paper_slot_col(slot, m, body):
     )
 
 
-def rizhi_today_html(issues):
-    """今日刊主页：一张报纸、三栏分区（上午／午间／晚间）；已刊写摘要，未刊待刊。"""
-    today, today_map, _cards, status, t, vol_date = _today_status(issues)
-    published = len(today_map)
+def _day_status_label(day, day_map, *, is_today=False):
+    published = len(day_map)
+    pend = [s for s in ("上午", "午间", "晚间") if s not in day_map]
+    nword = "三" if published == 3 else "两" if published == 2 else "一" if published == 1 else "零"
+    head = "今日" if is_today else "本日"
+    status = f"{head}{nword}场已刊" if published else f"{head}尚未付印"
+    if pend and published:
+        status += " · " + "／".join(pend) + ("待刊" if is_today else "未刊")
+    elif pend and not published:
+        status += " · " + "／".join(pend) + ("待刊" if is_today else "未刊")
+    return status, published
+
+
+def rizhi_day_paper_html(day, day_map, *, is_today=False):
+    """单日报纸总页：三栏分区；已刊写概括，缺场标待刊／未刊。"""
+    t = datetime.date.fromisoformat(day)
+    vol_date = f"{t.year} · {t.month} · {t.day}"
+    status, published = _day_status_label(day, day_map, is_today=is_today)
     cols = "".join(
-        paper_slot_col(s, *(today_map.get(s) or (None, "")))
+        paper_slot_col(s, *(day_map.get(s) or (None, "")))
         for s in ("上午", "午间", "晚间")
     )
+    paper_name = "今日刊" if is_today else f"{t.month}月{t.day}日刊"
+    back_href = "rizhi.html" if is_today else "archive.html"
+    back_label = "← 回日知主页" if is_today else "← 回日知往期"
+    folio = f"第 {published}/3 场已刊"
     return f"""<div class="home page-wide paper-page">
-<a class="back" href="rizhi.html">← 回日知主页</a>
+<a class="back" href="{back_href}">{back_label}</a>
 <div class="paper-sheet">
 <header class="paper-mast">
 <div class="paper-mast-top">
 <span class="paper-brand">Justknow · 日知</span>
-<span class="paper-folio">第 {published}/3 场已刊</span>
+<span class="paper-folio">{folio}</span>
 </div>
-<h1 class="paper-name">今日刊</h1>
+<h1 class="paper-name">{paper_name}</h1>
 <div class="paper-dateline">
 <strong>{vol_date}</strong>
-<span>{dlabel(today)}</span>
+<span>{dlabel(day)}</span>
 <span class="paper-status">{status}</span>
 </div>
 <div class="paper-rule" aria-hidden="true"></div>
@@ -954,6 +972,20 @@ def rizhi_today_html(issues):
 </div>"""
 
 
+def rizhi_today_html(issues):
+    """今日刊主页（今日日期的报纸总页）。"""
+    today, today_map, _cards, status, t, vol_date = _today_status(issues)
+    return rizhi_day_paper_html(today, today_map, is_today=True)
+
+
+def day_hub_path(day, today=None):
+    """Consistent day-overview URL. Today keeps branded today.html; past days use day-YYYY-MM-DD.html."""
+    if today is not None and day == today:
+        return "today.html"
+    return f"day-{day}.html"
+
+
+
 def rizhi_rack_html(issues, days):
     today, today_map, cards, status, t, vol_date = _today_status(issues)
     recent = []
@@ -961,13 +993,17 @@ def rizhi_rack_html(issues, days):
         items = sorted(days[d], key=lambda x: (ORDER.get(x[0]["slot"], 9), x[0]["slug"]))
         li = "".join(
             f'<li><a href="issues/{m["slug"]}.html"><span class="s">{m["slot"]}</span>'
-            f'<span class="t">{html.escape(_clip(_short_title(f), 40))}</span></a></li>'
-            for m, f in items
+            f'<span class="t">{html.escape(_clip(_short_title(first_piece_teaser(body)), 40))}</span></a></li>'
+            for m, body in items
         )
         td = datetime.date.fromisoformat(d)
+        hub = day_hub_path(d, today)
         recent.append(
-            f'<article class="day-card"><h3 class="day-date">{td.month}月{td.day}日'
-            f'<span class="dow">周{WD[td.weekday()]}</span></h3><ul>{li}</ul></article>'
+            f'<article class="day-card"><h3 class="day-date">'
+            f'<a class="day-date-link" href="{hub}">{td.month}月{td.day}日'
+            f'<span class="dow">周{WD[td.weekday()]}</span></a></h3>'
+            f'<ul>{li}</ul>'
+            f'<a class="day-go" href="{hub}">打开当日刊 →</a></article>'
         )
     return f"""<div class="home page-wide"><header class="rack-mast"><div>
 <div class="vol">VOL. 01 · {today}</div><h1 class="rack-title">日知</h1></div>
@@ -983,28 +1019,38 @@ def rizhi_rack_html(issues, days):
 
 
 def archive_html(issues, days):
-    rows = []
-    for d in sorted(days):
+    """日知往期：一行四张日卡（近日四则样式），点进当日报纸总页。"""
+    today = issues[-1][0]["日期"] if issues else None
+    cards = []
+    for d in sorted(days):  # 正序：从上到下、从左到右
         items = sorted(days[d], key=lambda x: (ORDER.get(x[0]["slot"], 9), x[0]["slug"]))
-        li = "".join(
-            f'<li><a href="issues/{m["slug"]}.html"><span class="slot">{m["slot"]}</span>'
-            f'<span class="entry"><span class="meta"><span class="who who-{m["署名"]}">{m["署名"]}</span> '
-            f'{m.get("期次","日知连载")}</span><span class="teaser">{html.escape(f[:60])}</span></span></a></li>'
-            for m, f in items
+        by_slot = {m["slot"]: (m, body) for m, body in items}
+        rows = []
+        for slot in ("上午", "午间", "晚间"):
+            if slot not in by_slot:
+                continue
+            m, body = by_slot[slot]
+            title = _clip(_short_title(first_piece_teaser(body)), 40)
+            rows.append(
+                f'<li><span class="s">{slot}</span>'
+                f'<span class="t">{html.escape(title)}</span></li>'
+            )
+        td = datetime.date.fromisoformat(d)
+        hub = day_hub_path(d, today)
+        n = len(items)
+        cards.append(
+            f'<a class="day-card day-card-hub" href="{hub}" id="d{d}">'
+            f'<h3 class="day-date">{td.month}月{td.day}日'
+            f'<span class="dow">周{WD[td.weekday()]}</span></h3>'
+            f'<ul>{"".join(rows)}</ul>'
+            f'<span class="day-go">打开当日刊 · {n} 场 →</span></a>'
         )
-        rows.append(
-            f'<section class="day" id="d{d}"><h2 class="date">{dlabel(d)}</h2><ul class="list">{li}</ul></section>'
-        )
-    jump = (
-        '<nav class="jump">'
-        + "".join(f'<a href="#d{d}">{dlabel(d).split(" ")[0]}</a>' for d in sorted(days))
-        + "</nav>"
-    )
+    n_days = len(days)
     return (
-        '<div class="archive-page"><a class="back" href="rizhi.html">← 回日知主页</a>'
+        '<div class="archive-page page-wide"><a class="back" href="rizhi.html">← 回日知主页</a>'
         f'<div class="archive-block"><h2>日知往期</h2>'
-        f'<p class="count">共 {len(issues)} 期 · 按日编排</p>'
-        f"{jump}{''.join(rows)}</div></div>"
+        f'<p class="count">共 {n_days} 日 · {len(issues)} 期 · 按日正序</p>'
+        f'<div class="recent-grid archive-day-grid">{"".join(cards)}</div></div></div>'
     )
 
 
@@ -1413,7 +1459,7 @@ def main():
             if idx
             else "<span></span>"
         )
-        nav += '<a href="../archive.html">目录</a>'
+        nav += f'<a href="../day-{m["日期"]}.html">当日刊</a>'
         nav += (
             f'<a href="{issues[idx+1][0]["slug"]}.html">下一期 →</a>'
             if idx < len(issues) - 1
@@ -1444,8 +1490,9 @@ def main():
         )
         if signoff:
             article += f'<p class="signoff">{html.escape(signoff)}</p>'
+        day_href = f'../day-{m["日期"]}.html'
         article += (
-            f'<footer class="folio"><a href="../archive.html">← 目录</a>'
+            f'<footer class="folio"><a href="{day_href}">← 当日刊</a>'
             f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · {html.escape(m["slot"])}</span>'
             f"<span>日知</span></footer>"
         )
@@ -1461,7 +1508,7 @@ def main():
 
     days = {}
     for m, body in issues:
-        days.setdefault(m["日期"], []).append((m, first_piece_teaser(body)))
+        days.setdefault(m["日期"], []).append((m, body))
 
     # 小灶独立条目页／历史日章／人物枢纽页
     for m, body in xz_items:
@@ -1490,6 +1537,21 @@ def main():
         page("今日刊", rizhi_today_html(issues), "", active="rizhi"),
         encoding="utf-8",
     )
+    # 每日报纸总页（含今日 day-YYYY-MM-DD.html；今日另保留 today.html 品牌入口）
+    for d, items in days.items():
+        day_map = {m["slot"]: (m, body) for m, body in items}
+        is_today = d == issues[-1][0]["日期"]
+        td = datetime.date.fromisoformat(d)
+        title = "今日刊" if is_today else f"{td.month}月{td.day}日刊"
+        (OUT / f"day-{d}.html").write_text(
+            page(title, rizhi_day_paper_html(d, day_map, is_today=is_today), "", active="rizhi"),
+            encoding="utf-8",
+        )
+    # drop stale day-*.html no longer in source
+    keep_days = {f"day-{d}.html" for d in days}
+    for f in OUT.glob("day-*.html"):
+        if f.name not in keep_days:
+            f.unlink()
     (OUT / "archive.html").write_text(
         page("日知往期", archive_html(issues, days), "", active="rizhi"),
         encoding="utf-8",

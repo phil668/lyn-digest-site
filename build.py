@@ -1165,7 +1165,7 @@ def xiaozao_home_html(xz_items):
             lines = _xz_day_summary_lines(items)
             body = f'<ul class="xz-day-zones">{"".join(lines)}</ul>'
             recent_cards.append(
-                f'<a class="xz-day-card" href="xiaozao-dates.html#xz{d}">'
+                f'<a class="xz-day-card" href="xiaozao-day-{d}.html">'
                 f'<div class="xz-day-meta">{meta}</div>'
                 f'{body}'
                 f'<span class="xz-day-go">打开当日 →</span></a>'
@@ -1191,7 +1191,7 @@ def xiaozao_home_html(xz_items):
 <section class="rack-section" aria-labelledby="xz-recent-h"><div class="rack-section-head">
 <h2 id="xz-recent-h">近日更新</h2><span class="hint">今日以前 · 四日</span></div>
 <div class="xz-recent-grid">{recent_html}</div></section>
-<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶完整页</strong>共 {len(xz_items)} 则 · 可按专区／日期筛选</div>
+<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶完整页</strong>共 {len(xz_items)} 则 · 点专区或日期进单独页</div>
 <a class="go" href="xiaozao-dates.html">了解更多 →</a></div></div>"""
 
 
@@ -1200,10 +1200,8 @@ def xiaozao_zone_html(zkey, xz_items):
     desc = next(d for k, _, d in ZONES if k == zkey)
     items = [(m, b) for m, b in xz_items if m["zkey"] == zkey]
     # ascending chronological (xz_items already date/slot ascending)
-    tabs = "".join(
-        f'<a class="ztab{" active" if k==zkey else ""}" href="{ZONE_PAGE[k]}">{n}</a>'
-        for k, n, _ in ZONES
-    )
+    zone_bar = _xz_step2_zone_bar(zkey)
+    hint = '<p class="xz-filter-hint">第二步：全部回完整页，或切换四个专区。</p>'
     if zkey == "history":
         persons = group_history_persons(xz_items)
         cards = []
@@ -1221,8 +1219,8 @@ def xiaozao_zone_html(zkey, xz_items):
             )
         return (
             f'<div class="archive-page zone-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
-            f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
             f'<div class="archive-block"><h2>{name}</h2>'
+            f'{zone_bar}{hint}'
             f'<p class="count">{desc} · 共 {len(persons)} 人 · 先按人浏览再进日章</p>'
             f'<ul class="person-grid">{"".join(cards)}</ul></div></div>'
         )
@@ -1231,148 +1229,331 @@ def xiaozao_zone_html(zkey, xz_items):
         hook = _xz_hook_line(b, 72)
         href = f'xiaozao/entry-{m["slug"]}.html'
         lis.append(
-            f'<li class="xz-entry">'
+            f'<li class="xz-entry xz-entry-row">'
             f'<a href="{href}">'
             f'<div class="meta">{dlabel(m["日期"])} · {m["时段"]}</div>'
             f'<div class="zg-title">{html.escape(m["标题"])}</div>'
             f'<div class="teaser">{html.escape(hook)}</div>'
             f'<span class="go-mini">阅读 →</span></a></li>'
         )
+    base = f"{name} · 共 {len(items)} 则"
     return (
-        f'<div class="archive-page zone-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
-        f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
-        f'<div class="archive-block"><h2>{name}</h2>'
-        f'<p class="count">{desc} · 共 {len(items)} 则</p>'
+        f'<div class="archive-page zone-page">'
+        f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
+        f'<div class="archive-block"><h2>{name}</h2><p class="zone-desc-line">{desc}</p>'
+        f'{zone_bar}{hint}'
+        f'<p class="count">{base}</p>'
         f'<ul class="zg-list">{"".join(lis)}</ul></div></div>'
     )
 
 
-def xiaozao_dates_html(xz_items, filter_key=None):
-    """小灶完整页：专区＋日期客户端筛选；共 N 则 = 已刊 xz_items 全量（含历史日章）。"""
-    by = {}
-    for m, b in xz_items:
-        by.setdefault(m["日期"], []).append((m, b))
-    dates = sorted(by)
-    total = sum(len(v) for v in by.values())
-    init_zone = filter_key or "all"
+def _zone_name(k):
+    return next(n for kk, n, _ in ZONES if kk == k)
 
-    zone_btns = [
-        f'<button type="button" class="ztab xz-fbtn{" active" if init_zone=="all" else ""}" '
-        f'data-filter-zone="all">全部</button>'
-    ]
-    for k, n, _ in ZONES:
-        zone_btns.append(
-            f'<button type="button" class="ztab xz-fbtn{" active" if init_zone==k else ""}" '
-            f'data-filter-zone="{k}">{n}</button>'
+
+def _xz_href(m, prefix=""):
+    if m["zkey"] == "history":
+        return f'{prefix}xiaozao/history-{m["slug"]}.html'
+    return f'{prefix}xiaozao/entry-{m["slug"]}.html'
+
+
+def _xz_link_tabs(items):
+    """items: list of (href, label, is_active)."""
+    return "".join(
+        f'<a class="ztab{" active" if act else ""}" href="{href}">{lab}</a>'
+        for href, lab, act in items
+    )
+
+
+def _xz_filter_bar(zone_links=None, date_links=None, aria="筛选", unlabeled=False):
+    """zone_links / date_links: list of (href, label, active).
+    unlabeled=True：不显示「专区／日期」行标签（一级三钮用）。"""
+    rows = []
+    if zone_links:
+        label = "" if unlabeled else '<span class="xz-filter-label">专区</span>'
+        rows.append(
+            f'<div class="xz-filter-row">{label}'
+            f'<div class="zone-tabs xz-filter-tabs" role="navigation" aria-label="专区">'
+            f'{_xz_link_tabs(zone_links)}</div></div>'
         )
+    if date_links:
+        label = "" if unlabeled else '<span class="xz-filter-label">日期</span>'
+        rows.append(
+            f'<div class="xz-filter-row">{label}'
+            f'<div class="zone-tabs xz-filter-tabs" role="navigation" aria-label="日期">'
+            f'{_xz_link_tabs(date_links)}</div></div>'
+        )
+    return f'<div class="xz-filters" aria-label="{aria}">{"".join(rows)}</div>'
 
-    date_btns = [
-        '<button type="button" class="ztab xz-fbtn active" data-filter-date="all">全部</button>'
-    ]
+
+def _date_nav_links(dates, active="all", all_href="xiaozao-dates.html"):
+    out = [(all_href, "全部", active == "all")]
     for d in dates:
         td = datetime.date.fromisoformat(d)
-        label = f"{td.month}月{td.day}日"
-        date_btns.append(
-            f'<button type="button" class="ztab xz-fbtn" data-filter-date="{d}">{label}</button>'
-        )
+        out.append((f"xiaozao-day-{d}.html", f"{td.month}月{td.day}日", active == d))
+    return out
 
+
+def _zone_nav_links(active="all", all_href="xiaozao-dates.html"):
+    out = [(all_href, "全部", active == "all")]
+    for k, n, _ in ZONES:
+        out.append((ZONE_PAGE[k], n, active == k))
+    return out
+
+
+def _xz_step1_bar(active="all", latest_date=None):
+    """完整页一级筛栏：全部｜专区｜日期。"""
+    zone_href = ZONE_PAGE[ZONES[0][0]]  # 默认进第一个专区页
+    date_href = (
+        f"xiaozao-day-{latest_date}.html" if latest_date else "xiaozao-dates.html"
+    )
+    items = [
+        ("xiaozao-dates.html", "全部", active == "all"),
+        (zone_href, "专区", active == "zone"),
+        (date_href, "日期", active == "date"),
+    ]
+    return _xz_filter_bar(zone_links=items, unlabeled=True, aria="筛选")
+
+
+def _xz_step2_zone_bar(active="all"):
+    """专区路径第二步：全部（回完整页）＋四专区。"""
+    return _xz_filter_bar(_zone_nav_links(active), None, aria="专区筛选")
+
+
+def _xz_step2_date_bar(dates, active="all"):
+    """日期路径第二步：全部（回完整页）＋各日期。"""
+    return _xz_filter_bar(None, _date_nav_links(dates, active=active), aria="日期筛选")
+
+
+def _xz_day_rows(by, dates):
     rows = []
     for d in dates:
         items = sorted(by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"]))
         lis = []
         for m, b in items:
-            name = next(n for k, n, _ in ZONES if k == m["zkey"])
+            name = _zone_name(m["zkey"])
             hook = _xz_hook_line(b, 48)
-            if m["zkey"] == "history":
-                href = f'xiaozao/history-{m["slug"]}.html'
-            else:
-                href = f'xiaozao/entry-{m["slug"]}.html'
             lis.append(
-                f'<li class="xz-entry-row" data-zone="{m["zkey"]}" data-date="{d}">'
-                f'<a href="{href}">'
+                f'<li class="xz-entry-row">'
+                f'<a href="{_xz_href(m)}">'
                 f'<span class="slot xz-slot xz-{m["zkey"]}">{name[:2]}</span>'
                 f'<span class="entry"><span class="meta">{m["时段"]} · {html.escape(m["标题"])}</span>'
                 f'<span class="teaser">{html.escape(hook)}</span></span></a></li>'
             )
         rows.append(
             f'<section class="day xz-day" id="xz{d}" data-date="{d}">'
-            f'<h2 class="date">{dlabel(d)}</h2>'
+            f'<h2 class="date"><a href="xiaozao-day-{d}.html">{dlabel(d)}</a></h2>'
             f'<ul class="list">{"".join(lis)}</ul></section>'
         )
+    return rows
 
-    title = "小灶完整页" if not filter_key else (
-        f'小灶完整页 · {next(n for k, n, _ in ZONES if k == filter_key)}'
+
+def _xz_book_hrefs(xz_items):
+    """全部小灶条目 href 列表（新→旧），供随手翻开随机跳转。"""
+    by = {}
+    for m, b in xz_items:
+        by.setdefault(m["日期"], []).append((m, b))
+    hrefs = []
+    for d in sorted(by, reverse=True):
+        day_items = sorted(
+            by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"])
+        )
+        hrefs.extend(_xz_href(m) for m, _ in day_items)
+    return hrefs
+
+
+def _xz_ancient_book(xz_items):
+    """完整页「全部」：线装古书摊开；点书页／随手翻开 → 随机进一条条目。"""
+    import json
+
+    hrefs = _xz_book_hrefs(xz_items)
+    if not hrefs:
+        return '<p class="xz-filter-empty">暂无条目</p>'
+    hrefs_json = html.escape(json.dumps(hrefs, ensure_ascii=False), quote=True)
+    n = len(hrefs)
+    by = {}
+    for m, b in xz_items:
+        by.setdefault(m["日期"], []).append((m, b))
+    metas = []
+    for d in sorted(by, reverse=True):
+        day_items = sorted(
+            by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"])
+        )
+        metas.extend(day_items)
+    left_bits, right_bits = [], []
+    for i, (m, _) in enumerate(metas[:8]):
+        short = ZONE_SHORT.get(m["zkey"], _zone_name(m["zkey"])[:2])
+        raw = re.sub(r"[——（）()《》·、，,。：:]", "", m["标题"])
+        title = _clip(raw, 8)
+        bit = (
+            f'<span class="xz-book-col xz-{m["zkey"]}" aria-hidden="true">'
+            f'<em class="xz-book-col-z">{html.escape(short)}</em>'
+            f'<b class="xz-book-col-t">{html.escape(title)}</b>'
+            f"</span>"
+        )
+        (left_bits if i < 4 else right_bits).append(bit)
+    left_html = "".join(left_bits)
+    right_html = "".join(right_bits)
+    # script: 翻页动画约 0.5s，再随机跳转
+    script = (
+        "<script>(function(){"
+        'var root=document.getElementById("xz-book");'
+        "if(!root)return;"
+        "var hrefs=[],busy=0;"
+        'try{hrefs=JSON.parse(root.getAttribute("data-hrefs")||"[]");}catch(e){hrefs=[];}'
+        "function go(){if(!hrefs.length)return;"
+        "var i=Math.floor(Math.random()*hrefs.length);location.href=hrefs[i];}"
+        "function flip(){if(busy||!hrefs.length)return;busy=1;"
+        'root.classList.add("is-flipping");'
+        "var ms=500;"
+        'try{if(window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches)ms=40;}'
+        "catch(e){}"
+        "setTimeout(go,ms);}"
+        'root.addEventListener("click",flip);'
+        'root.addEventListener("keydown",function(e){'
+        'if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();}});'
+        'var btn=document.getElementById("xz-book-open");'
+        'if(btn)btn.addEventListener("click",function(e){e.stopPropagation();flip();});'
+        "})();</script>"
     )
-    script = r"""
-<script>
-(function(){
-  var root = document.getElementById('xz-filter-root');
-  if(!root) return;
-  var zone = root.getAttribute('data-init-zone') || 'all';
-  var date = 'all';
-  var countEl = document.getElementById('xz-filter-count');
-  var emptyEl = document.getElementById('xz-filter-empty');
-  var total = parseInt(root.getAttribute('data-total') || '0', 10);
-
-  function setActive(group, val){
-    root.querySelectorAll('[data-filter-'+group+']').forEach(function(btn){
-      btn.classList.toggle('active', btn.getAttribute('data-filter-'+group) === val);
-    });
-  }
-
-  function apply(){
-    setActive('zone', zone);
-    setActive('date', date);
-    var shown = 0;
-    root.querySelectorAll('.xz-day').forEach(function(sec){
-      var d = sec.getAttribute('data-date');
-      var dateOk = (date === 'all' || date === d);
-      var any = 0;
-      sec.querySelectorAll('.xz-entry-row').forEach(function(li){
-        var zoneOk = (zone === 'all' || li.getAttribute('data-zone') === zone);
-        var ok = dateOk && zoneOk;
-        li.hidden = !ok;
-        if(ok){ any++; shown++; }
-      });
-      sec.hidden = !dateOk || any === 0;
-    });
-    if(countEl){
-      if(zone === 'all' && date === 'all'){
-        countEl.textContent = '共 ' + total + ' 则 · 按日编排 · 可筛选';
-      } else {
-        countEl.textContent = '筛选结果 ' + shown + ' 则（全库 ' + total + ' 则）';
-      }
-    }
-    if(emptyEl) emptyEl.hidden = shown > 0;
-  }
-
-  root.addEventListener('click', function(e){
-    var z = e.target.closest('[data-filter-zone]');
-    var d = e.target.closest('[data-filter-date]');
-    if(z){ zone = z.getAttribute('data-filter-zone'); apply(); }
-    if(d){ date = d.getAttribute('data-filter-date'); apply(); }
-  });
-  apply();
-})();
-</script>
-""".strip()
-
     return (
-        f'<div class="archive-page" id="xz-filter-root" data-init-zone="{init_zone}" '
-        f'data-total="{total}">'
+        f'<div class="xz-book" id="xz-book" data-hrefs="{hrefs_json}" '
+        f'role="button" tabindex="0" aria-label="随手翻开一卷小灶，随机阅读一则">'
+        f'<div class="xz-book-board">'
+        f'<div class="xz-book-binding" aria-hidden="true">'
+        f"<span></span><span></span><span></span><span></span></div>"
+        f'<div class="xz-book-spread">'
+        f'<div class="xz-book-page xz-book-left">'
+        f'<div class="xz-book-page-inner">'
+        f'<span class="xz-book-seal" aria-hidden="true">小灶</span>'
+        f'<div class="xz-book-cols">{left_html}</div>'
+        f"</div></div>"
+        f'<div class="xz-book-gutter" aria-hidden="true"></div>'
+        f'<div class="xz-book-page xz-book-right">'
+        f'<div class="xz-book-page-inner">'
+        f'<div class="xz-book-cols">{right_html}</div>'
+        f'<p class="xz-book-verso" aria-hidden="true">凡{n}则 · 随手一翻</p>'
+        f"</div></div>"
+        f"</div>"
+        f'<span class="xz-book-ribbon" aria-hidden="true"></span>'
+        f"</div>"
+        f'<button type="button" class="xz-book-open" id="xz-book-open">随手翻开</button>'
+        f'<p class="xz-book-tip">点书页或按钮，随机跳进一则小灶正文</p>'
+        f"</div>"
+        f"{script}"
+    )
+
+
+def _xz_day_piece_card(m, b):
+    """日期页日刊架条目卡：专区色脊 + 刊讯感；点进详情。"""
+    zkey = m["zkey"]
+    short = ZONE_SHORT.get(zkey, _zone_name(zkey)[:2])
+    name = _zone_name(zkey)
+    hook = _xz_hook_line(b, 72)
+    slot = m["时段"]
+    return (
+        f'<a class="xz-issue-card xz-piece xz-{zkey}" href="{_xz_href(m)}">'
+        f'<aside class="xz-issue-spine xz-spine-{zkey}" aria-hidden="true">'
+        f'<span class="xz-issue-mon">{html.escape(slot)}</span>'
+        f'<span class="xz-issue-num xz-piece-zn">{html.escape(short)}</span>'
+        f'<span class="xz-issue-wd">{html.escape(name)}</span>'
+        f'</aside>'
+        f'<div class="xz-issue-main">'
+        f'<div class="xz-issue-mast">'
+        f'<span class="xz-issue-kicker">刊讯 · {html.escape(short)}</span>'
+        f'<span class="xz-issue-count">{html.escape(slot)}</span>'
+        f'</div>'
+        f'<div class="xz-issue-strips">'
+        f'<span class="xz-issue-strip xz-{zkey}" style="flex:1"></span>'
+        f'</div>'
+        f'<p class="xz-issue-lead">'
+        f'<span class="xz-issue-lead-t">{html.escape(m["标题"])}</span></p>'
+        f'<p class="xz-piece-teaser">{html.escape(hook)}</p>'
+        f'<span class="xz-issue-open">阅读 →</span>'
+        f'</div></a>'
+    )
+
+
+def _xz_day_piece_rack(items):
+    """日期第二步主体：该日条目的日刊架卡片墙。"""
+    sorted_items = sorted(
+        items, key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"])
+    )
+    cards = [_xz_day_piece_card(m, b) for m, b in sorted_items]
+    return f'<div class="xz-issue-rack xz-day-pieces">{"".join(cards)}</div>'
+
+
+def xiaozao_dates_html(xz_items, filter_key=None):
+    """小灶完整页：一级仅「全部｜专区｜日期」；filter_key 页用专区第二步。"""
+    items = xz_items
+    if filter_key:
+        items = [(m, b) for m, b in xz_items if m["zkey"] == filter_key]
+    by = {}
+    for m, b in items:
+        by.setdefault(m["日期"], []).append((m, b))
+    dates = sorted(by)
+    all_dates = sorted({m["日期"] for m, _ in xz_items})
+    total = sum(len(v) for v in by.values())
+    latest = all_dates[-1] if all_dates else None
+    if filter_key:
+        bar = _xz_step2_zone_bar(filter_key)
+        hint = '<p class="xz-filter-hint">第二步：全部回完整页，或切换四个专区。</p>'
+        base = f"{_zone_name(filter_key)} · 共 {total} 则 · 按日编排"
+        rows = _xz_day_rows(by, dates)
+        title = f"小灶完整页 · {_zone_name(filter_key)}"
+        return (
+            f'<div class="archive-page">'
+            f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
+            f'<div class="archive-block"><h2>{title}</h2>{bar}{hint}'
+            f'<p class="count">{base}</p>'
+            f'{"".join(rows)}</div></div>'
+        )
+    # 「全部」＝线装古书；点书页／随手翻开 → 随机进一条条目
+    bar = _xz_step1_bar(active="all", latest_date=latest)
+    hint = (
+        '<p class="xz-filter-hint">'
+        "点专区／日期进入第二步；下面是一卷小灶——随手翻开，随机读一则。"
+        "</p>"
+    )
+    book = _xz_ancient_book(items)
+    return (
+        f'<div class="archive-page page-wide xz-overview">'
         f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
-        f'<div class="archive-block"><h2>{title}</h2>'
-        f'<div class="xz-filters" role="search" aria-label="专区与日期筛选">'
-        f'<div class="xz-filter-row"><span class="xz-filter-label">专区</span>'
-        f'<div class="zone-tabs xz-filter-tabs" role="group" aria-label="专区">'
-        f'{"".join(zone_btns)}</div></div>'
-        f'<div class="xz-filter-row"><span class="xz-filter-label">日期</span>'
-        f'<div class="zone-tabs xz-filter-tabs" role="group" aria-label="日期">'
-        f'{"".join(date_btns)}</div></div></div>'
-        f'<p class="count" id="xz-filter-count">共 {total} 则 · 按日编排 · 可筛选</p>'
-        f'<p class="xz-filter-empty" id="xz-filter-empty" hidden>该筛选下暂无条目</p>'
-        f'{"".join(rows)}</div></div>'
-        f'{script}'
+        f'<div class="archive-block">'
+        f'<h2 class="xz-ov-title">小灶完整页</h2>'
+        f'<p class="xz-ov-sub">共 {total} 则 · 线装一卷 · 随手翻开</p>'
+        f'{bar}{hint}{book}</div></div>'
+    )
+
+
+def xiaozao_day_html(d, xz_items):
+    """小灶日期页：第二步＝全部＋各日期；主体＝该日日刊架条目卡。"""
+    items = [(m, b) for m, b in xz_items if m["日期"] == d]
+    td = datetime.date.fromisoformat(d)
+    all_dates = sorted({m["日期"] for m, _ in xz_items})
+    i = all_dates.index(d)
+    nav = []
+    if i > 0:
+        p = all_dates[i - 1]
+        nav.append(f'<a href="xiaozao-day-{p}.html">← {dlabel(p)}</a>')
+    if i < len(all_dates) - 1:
+        n = all_dates[i + 1]
+        nav.append(f'<a href="xiaozao-day-{n}.html">{dlabel(n)} →</a>')
+    base = f"{td.month}月{td.day}日 · 共 {len(items)} 则 · 日刊架"
+    rack = _xz_day_piece_rack(items) if items else (
+        '<p class="xz-filter-empty">当日暂无条目</p>'
+    )
+    bar = _xz_step2_date_bar(all_dates, active=d)
+    return (
+        f'<div class="archive-page page-wide xz-day-page">'
+        f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
+        f'<div class="archive-block"><h2>小灶 · {td.month}月{td.day}日 周{WD[td.weekday()]}</h2>'
+        f'{bar}'
+        f'<p class="xz-filter-hint">第二步：全部回完整页，或切换日期；'
+        f'<a href="xiaozao-dates.html">回完整页看全部 →</a></p>'
+        f'<p class="count">{base}</p>'
+        f'{rack}'
+        f'<nav class="xz-day-nav">{"".join(nav)}</nav></div></div>'
     )
 
 
@@ -1569,6 +1750,17 @@ def main():
         page("小灶完整页", xiaozao_dates_html(xz_items), "", active="xiaozao"),
         encoding="utf-8",
     )
+    xz_dates = sorted({m["日期"] for m, _ in xz_items})
+    for d in xz_dates:
+        td = datetime.date.fromisoformat(d)
+        (OUT / f"xiaozao-day-{d}.html").write_text(
+            page(f"小灶 · {td.month}月{td.day}日", xiaozao_day_html(d, xz_items), "", active="xiaozao"),
+            encoding="utf-8",
+        )
+    keep_xd = {f"xiaozao-day-{d}.html" for d in xz_dates}
+    for f in OUT.glob("xiaozao-day-*.html"):
+        if f.name not in keep_xd:
+            f.unlink()
     for key, name, _ in ZONES:
         (OUT / f"xiaozao-dates-{key}.html").write_text(
             page(f"小灶完整页 · {name}", xiaozao_dates_html(xz_items, filter_key=key), "", active="xiaozao"),

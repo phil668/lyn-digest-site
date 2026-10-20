@@ -515,6 +515,146 @@ def load_xz():
     return items
 
 
+# 历史人物按「人」整合（专区页先人后日）
+# 例程约定：历史连载仅午间 14:54 更新一天（见 HISTORY.md）
+PERSON_BIOS = {
+    "jiaxu": (
+        "三国魏谋士，字文和，武威姑臧人。"
+        "本传见《三国志·魏书》卷十；本站连载按其一生事迹分日。"
+    ),
+}
+PERSON_SLUG_RE = re.compile(r"history-([a-z0-9]+)(?:-\d+)?$", re.I)
+DAY_RE = re.compile(r"第\s*(\d+)\s*天")
+TOTAL_RE = re.compile(r"预计\s*(\d+)\s*天")
+
+
+def person_name_from_title(title):
+    for sep in ("——", "—", "–"):
+        if sep in title:
+            return title.split(sep, 1)[0].strip()
+    return (title or "").strip()
+
+
+def person_slug_from_meta(m):
+    mm = PERSON_SLUG_RE.search(m.get("slug", ""))
+    if mm:
+        return mm.group(1).lower()
+    name = person_name_from_title(m.get("标题", ""))
+    return re.sub(r"[^a-z0-9]+", "", name.lower()) or "person"
+
+
+def parse_day_progress(title):
+    d = DAY_RE.search(title or "")
+    t = TOTAL_RE.search(title or "")
+    return (int(d.group(1)) if d else None, int(t.group(1)) if t else None)
+
+
+def _bio_from_body(body):
+    """Prefer a 字／籍贯句；else first usable paragraph."""
+    paras = []
+    for l in body.split("\n"):
+        s = strip_md(l)
+        if not s or s.startswith("来源") or s.startswith("史料凡例"):
+            continue
+        if s.startswith("开篇") or re.match(r"^第?\d+", s):
+            continue
+        paras.append(s)
+        if len(paras) >= 4:
+            break
+    for p in paras:
+        if "字" in p and ("人" in p or "州" in p or "郡" in p):
+            parts = re.split(r"(?<=[。！？])", p)
+            out = "".join(parts[:2]).strip()
+            return _clip(out or p, 120)
+    if paras:
+        return _clip(paras[0], 120)
+    return ""
+
+
+def group_history_persons(xz_items):
+    """List of person dicts, most recently updated first."""
+    buckets = {}
+    order = []
+    for m, b in xz_items:
+        if m["zkey"] != "history":
+            continue
+        slug = person_slug_from_meta(m)
+        if slug not in buckets:
+            buckets[slug] = {
+                "slug": slug,
+                "name": person_name_from_title(m["标题"]),
+                "chapters": [],
+                "total_days": None,
+            }
+            order.append(slug)
+        day, total = parse_day_progress(m["标题"])
+        buckets[slug]["chapters"].append(
+            {"meta": m, "body": b, "day": day, "href": f'xiaozao/history-{m["slug"]}.html'}
+        )
+        if total:
+            buckets[slug]["total_days"] = total
+        nm = person_name_from_title(m["标题"])
+        if nm and (not buckets[slug]["name"] or (day == 1)):
+            buckets[slug]["name"] = nm
+    persons = []
+    for slug in order:
+        p = buckets[slug]
+        ch = p["chapters"]
+        ch.sort(
+            key=lambda c: (
+                c["day"] if c["day"] is not None else 999,
+                c["meta"]["日期"],
+                ORDER.get(c["meta"]["时段"], 9),
+            )
+        )
+        p["bio"] = PERSON_BIOS.get(slug) or _bio_from_body(ch[0]["body"])
+        p["published"] = len(ch)
+        p["latest"] = max(c["meta"]["日期"] for c in ch)
+        persons.append(p)
+    persons.sort(key=lambda p: p["latest"], reverse=True)
+    return persons
+
+
+def render_person_hub(person, root="../"):
+    name = person["name"]
+    bio = person["bio"]
+    total = person["total_days"]
+    pub = person["published"]
+    prog = f"已刊 {pub} 天" + (f"／预计 {total} 天" if total else "")
+    lis = []
+    for c in person["chapters"]:
+        m = c["meta"]
+        day_label = f"第{c['day']}天" if c["day"] else m["时段"]
+        href = f'history-{m["slug"]}.html'
+        lis.append(
+            f'<li class="person-chapter">'
+            f'<a href="{href}">'
+            f'<div class="meta">{dlabel(m["日期"])} · {m["时段"]} · {day_label}</div>'
+            f'<div class="zg-title">{html.escape(m["标题"])}</div>'
+            f'<span class="go-mini">阅读 →</span></a></li>'
+        )
+    tabs = "".join(
+        f'<a class="ztab{" active" if k == "history" else ""}" href="{root}{ZONE_PAGE[k]}">{n}</a>'
+        for k, n, _ in ZONES
+    )
+    inner = (
+        f'<div class="archive-page zone-page person-hub">'
+        f'<a class="back" href="{root}xiaozao-history.html">← 回历史人物</a>'
+        f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
+        f'<header class="person-head">'
+        f'<div class="person-kicker">人物志</div>'
+        f'<h1 class="person-name">{html.escape(name)}</h1>'
+        f'<p class="person-bio">{html.escape(bio)}</p>'
+        f'<p class="person-progress">{html.escape(prog)}</p>'
+        f"</header>"
+        f'<div class="archive-block"><h2>连载章节</h2>'
+        f'<ul class="zg-list person-chapters">{"".join(lis)}</ul></div></div>'
+    )
+    return page(f"人物 · {name}", inner, root, active="xiaozao")
+
+
+
+
 def _xz_hook_line(body, n=52):
     for l in body.split("\n"):
         s = strip_md(l)
@@ -566,7 +706,7 @@ def home_html(issues, days, xz_items):
             hook = _xz_hook_line(b) or m["标题"]
             href = ZONE_PAGE[key]
             if key == "history":
-                href = f'xiaozao/history-{m["slug"]}.html'
+                href = f'xiaozao/person-{person_slug_from_meta(m)}.html'
             zone_rows.append(
                 f'<a class="xz-hook xz-{key}" href="{href}">'
                 f'<span class="xz-k">{name[:2]}</span>'
@@ -680,8 +820,8 @@ def xiaozao_home_html(xz_items):
             hook = _xz_hook_line(b, 64) or m["标题"]
             extra = ""
             if key == "history":
-                page = f'xiaozao/history-{m["slug"]}.html'
-                extra = f'<a class="zone-hist" href="{page}">读完整人物志 →</a>'
+                page = f'xiaozao/person-{person_slug_from_meta(m)}.html'
+                extra = f'<a class="zone-hist" href="{page}">进入人物志 →</a>'
                 page = ZONE_PAGE[key]  # zone list page for 进入专区
             cards.append(
                 f'<a class="zone-card zone-{key}" href="{ZONE_PAGE[key]}">'
@@ -730,27 +870,44 @@ def xiaozao_zone_html(zkey, xz_items):
     desc = next(d for k, _, d in ZONES if k == zkey)
     items = [(m, b) for m, b in xz_items if m["zkey"] == zkey]
     items = list(reversed(items))
+    tabs = "".join(
+        f'<a class="ztab{" active" if k==zkey else ""}" href="{ZONE_PAGE[k]}">{n}</a>'
+        for k, n, _ in ZONES
+    )
+    if zkey == "history":
+        persons = group_history_persons(xz_items)
+        cards = []
+        for p in persons:
+            total = p["total_days"]
+            prog = f"已刊 {p['published']}" + (f"／预计 {total} 天" if total else " 天")
+            cards.append(
+                f'<li class="person-card">'
+                f'<a href="xiaozao/person-{p["slug"]}.html">'
+                f'<div class="person-kicker">人物志</div>'
+                f'<h3 class="person-name">{html.escape(p["name"])}</h3>'
+                f'<p class="person-bio">{html.escape(p["bio"])}</p>'
+                f'<div class="person-progress">{html.escape(prog)}</div>'
+                f'<span class="go-mini">进入人物志 →</span></a></li>'
+            )
+        return (
+            f'<div class="archive-page zone-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
+            f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
+            f'<div class="archive-block"><h2>{name}</h2>'
+            f'<p class="count">{desc} · 共 {len(persons)} 人 · 先按人浏览再进日章</p>'
+            f'<ul class="person-grid">{"".join(cards)}</ul></div></div>'
+        )
     lis = []
     for m, b in items:
         hook = _xz_hook_line(b, 72)
-        if zkey == "history":
-            href = f'xiaozao/history-{m["slug"]}.html'
-            go = "读人物志 →"
-        else:
-            href = f'xiaozao/entry-{m["slug"]}.html'
-            go = "阅读 →"
+        href = f'xiaozao/entry-{m["slug"]}.html'
         lis.append(
             f'<li class="xz-entry">'
             f'<a href="{href}">'
             f'<div class="meta">{dlabel(m["日期"])} · {m["时段"]}</div>'
             f'<div class="zg-title">{html.escape(m["标题"])}</div>'
             f'<div class="teaser">{html.escape(hook)}</div>'
-            f'<span class="go-mini">{go}</span></a></li>'
+            f'<span class="go-mini">阅读 →</span></a></li>'
         )
-    tabs = "".join(
-        f'<a class="ztab{" active" if k==zkey else ""}" href="{ZONE_PAGE[k]}">{n}</a>'
-        for k, n, _ in ZONES
-    )
     return (
         f'<div class="archive-page zone-page"><a class="back" href="xiaozao.html">← 回小灶主页</a>'
         f'<nav class="zone-tabs" aria-label="专区">{tabs}</nav>'
@@ -853,16 +1010,25 @@ def render_xz_history_page(m, body, root="../"):
         else:
             lines.append(l)
     hist_body = format_hist_body(lines)
+    pslug = person_slug_from_meta(m)
+    pname = person_name_from_title(m["标题"]) or "人物志"
+    day, total = parse_day_progress(m["标题"])
+    serial_bits = ["人物志 · 可按篇幅分日连载"]
+    if day:
+        serial_bits.append(f"第{day}天" + (f"／预计{total}天" if total else ""))
+    serial = " · ".join(serial_bits)
     inner = (
         f'<div class="issue-page hist-page">'
         f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
         f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · 历史人物</span></div>'
-        f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物</div>'
+        f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物 · {html.escape(pname)}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
-        f'<div class="hist-serial">人物志 · 可按篇幅分日连载</div>'
+        f'<div class="hist-serial">{html.escape(serial)}'
+        f' · <a href="{root}xiaozao/person-{pslug}.html">本人物目录</a></div>'
         f'<div class="hist-body">{hist_body}</div>'
-        f'<footer class="folio"><a href="{root}xiaozao-history.html">← 历史人物</a>'
-        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · 历史</span>'
+        f'<footer class="folio"><a href="{root}xiaozao/person-{pslug}.html">← {html.escape(pname)}</a>'
+        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · '
+        f'<a href="{root}xiaozao-history.html">历史人物</a></span>'
         f'<a href="{root}xiaozao.html">小灶主页</a></footer></div>'
     )
     return page(f'历史 · {m["标题"]}', inner, root, active="xiaozao")
@@ -939,7 +1105,7 @@ def main():
     for m, body in issues:
         days.setdefault(m["日期"], []).append((m, first_piece_teaser(body)))
 
-    # 小灶独立条目页／历史页
+    # 小灶独立条目页／历史日章／人物枢纽页
     for m, body in xz_items:
         if m["zkey"] == "history":
             (xz_dir / f'history-{m["slug"]}.html').write_text(
@@ -949,6 +1115,10 @@ def main():
             (xz_dir / f'entry-{m["slug"]}.html').write_text(
                 render_xz_entry_page(m, body, root="../"), encoding="utf-8"
             )
+    for person in group_history_persons(xz_items):
+        (xz_dir / f'person-{person["slug"]}.html').write_text(
+            render_person_hub(person, root="../"), encoding="utf-8"
+        )
 
     (OUT / "index.html").write_text(
         page("Lyn每日三次知识分享", home_html(issues, days, xz_items), "", active="home"),
@@ -987,8 +1157,10 @@ def main():
         encoding="utf-8",
     )
 
+    n_persons = len(group_history_persons(xz_items))
     print(
-        f"built {len(issues)} issues (no inline 小灶), {len(xz_items)} xiaozao entries -> {OUT}"
+        f"built {len(issues)} issues (no inline 小灶), {len(xz_items)} xiaozao entries, "
+        f"{n_persons} history persons -> {OUT}"
     )
 
 

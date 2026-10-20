@@ -623,3 +623,46 @@ a.zone-card:hover { border-color: var(--zg); transform: translateY(-2px); border
 @media (max-width: 900px) {
   .zone-grid { grid-template-columns: 1fr; }
 }
+
+/* —— 历史人物 · 按人整合 —— */
+.person-grid {
+  list-style: none; padding: 0; margin: 0;
+  display: grid; grid-template-columns: 1fr; gap: 1.25rem;
+}
+.person-card a {
+  display: block; text-decoration: none; color: var(--fg);
+  padding: 1.5rem 1.45rem 1.4rem;
+  background: color-mix(in srgb, var(--acc) 5%, var(--paper));
+  border: 1.5px solid color-mix(in srgb, var(--acc) 42%, var(--rule));
+  transition: border-color 0.15s, transform 0.15s;
+}
+.person-card a:hover {
+  border-color: var(--acc); transform: translateY(-2px);
+}
+.person-kicker {
+  font-size: 0.68rem; letter-spacing: 0.32em; color: var(--acc); margin-bottom: 0.4rem;
+}
+.person-card .person-name,
+.person-head .person-name {
+  margin: 0 0 0.55rem; font-size: 1.55rem; letter-spacing: 0.18em; font-weight: 600;
+}
+.person-head .person-name { font-size: 2rem; letter-spacing: 0.22em; }
+.person-bio {
+  margin: 0 0 0.85rem; font-size: 0.92rem; line-height: 1.7; color: var(--ink-soft);
+}
+.person-progress {
+  margin: 0 0 0.9rem; font-size: 0.78rem; letter-spacing: 0.12em; color: var(--acc);
+}
+.person-card .go-mini { color: var(--acc); }
+.person-head {
+  margin: 0 0 1.6rem; padding-bottom: 1.2rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--acc) 35%, var(--line));
+}
+.person-chapters .person-chapter a { display: block; text-decoration: none; color: var(--fg); }
+.person-chapters .go-mini { color: var(--acc); }
+.page-wide .person-card a { padding: 1.7rem 1.6rem; }
+.page-wide .person-card .person-name { font-size: 1.7rem; }
+.hist-serial a { color: var(--acc); text-decoration: none; letter-spacing: 0.06em; }
+.hist-serial a:hover { text-decoration: underline; }
+.folio .center a { color: inherit; text-decoration: none; border-bottom: 1px dotted currentColor; }
+.folio .center a:hover { color: var(--acc); }

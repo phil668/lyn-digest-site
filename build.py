@@ -1191,7 +1191,7 @@ def xiaozao_home_html(xz_items):
 <section class="rack-section" aria-labelledby="xz-recent-h"><div class="rack-section-head">
 <h2 id="xz-recent-h">近日更新</h2><span class="hint">今日以前 · 四日</span></div>
 <div class="xz-recent-grid">{recent_html}</div></section>
-<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶完整页</strong>共 {len(xz_items)} 则 · 点专区或日期进单独页</div>
+<div class="archive-strip archive-strip-xz"><div class="copy"><strong>小灶全集</strong>共 {len(xz_items)} 则 · 点专区或日期进单独页</div>
 <a class="go" href="xiaozao-dates.html">了解更多 →</a></div></div>"""
 
 
@@ -1201,7 +1201,7 @@ def xiaozao_zone_html(zkey, xz_items):
     items = [(m, b) for m, b in xz_items if m["zkey"] == zkey]
     # ascending chronological (xz_items already date/slot ascending)
     zone_bar = _xz_step2_zone_bar(zkey)
-    hint = '<p class="xz-filter-hint">第二步：全部回完整页，或切换四个专区。</p>'
+    hint = '<p class="xz-filter-hint">第二步：全部回全集，或切换四个专区。</p>'
     if zkey == "history":
         persons = group_history_persons(xz_items)
         cards = []
@@ -1302,7 +1302,7 @@ def _zone_nav_links(active="all", all_href="xiaozao-dates.html"):
 
 
 def _xz_step1_bar(active="all", latest_date=None):
-    """完整页一级筛栏：全部｜专区｜日期。"""
+    """全集一级筛栏：全部｜专区｜日期。"""
     zone_href = ZONE_PAGE[ZONES[0][0]]  # 默认进第一个专区页
     date_href = (
         f"xiaozao-day-{latest_date}.html" if latest_date else "xiaozao-dates.html"
@@ -1316,12 +1316,12 @@ def _xz_step1_bar(active="all", latest_date=None):
 
 
 def _xz_step2_zone_bar(active="all"):
-    """专区路径第二步：全部（回完整页）＋四专区。"""
+    """专区路径第二步：全部（回全集）＋四专区。"""
     return _xz_filter_bar(_zone_nav_links(active), None, aria="专区筛选")
 
 
 def _xz_step2_date_bar(dates, active="all"):
-    """日期路径第二步：全部（回完整页）＋各日期。"""
+    """日期路径第二步：全部（回全集）＋各日期。"""
     return _xz_filter_bar(None, _date_nav_links(dates, active=active), aria="日期筛选")
 
 
@@ -1363,7 +1363,7 @@ def _xz_book_hrefs(xz_items):
 
 
 def _xz_ancient_book(xz_items):
-    """完整页「全部」：线装古书摊开；点书页／随手翻开 → 随机进一条条目。"""
+    """全集「全部」：线装古书摊开；点书页／随手翻开 → 随机进一条条目。"""
     import json
 
     hrefs = _xz_book_hrefs(xz_items)
@@ -1501,7 +1501,7 @@ def _xz_day_piece_rack(items):
 
 
 def xiaozao_dates_html(xz_items, filter_key=None):
-    """小灶完整页：一级仅「全部｜专区｜日期」；filter_key 页用专区第二步。"""
+    """小灶全集：一级仅「全部｜专区｜日期」；filter_key 页用专区第二步。"""
     items = xz_items
     if filter_key:
         items = [(m, b) for m, b in xz_items if m["zkey"] == filter_key]
@@ -1514,10 +1514,10 @@ def xiaozao_dates_html(xz_items, filter_key=None):
     latest = all_dates[-1] if all_dates else None
     if filter_key:
         bar = _xz_step2_zone_bar(filter_key)
-        hint = '<p class="xz-filter-hint">第二步：全部回完整页，或切换四个专区。</p>'
+        hint = '<p class="xz-filter-hint">第二步：全部回全集，或切换四个专区。</p>'
         base = f"{_zone_name(filter_key)} · 共 {total} 则 · 按日编排"
         rows = _xz_day_rows(by, dates)
-        title = f"小灶完整页 · {_zone_name(filter_key)}"
+        title = f"小灶全集 · {_zone_name(filter_key)}"
         return (
             f'<div class="archive-page">'
             f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
@@ -1537,7 +1537,7 @@ def xiaozao_dates_html(xz_items, filter_key=None):
         f'<div class="archive-page page-wide xz-overview">'
         f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
         f'<div class="archive-block">'
-        f'<h2 class="xz-ov-title">小灶完整页</h2>'
+        f'<h2 class="xz-ov-title">小灶全集</h2>'
         f'<p class="xz-ov-sub">共 {total} 则 · 线装一卷 · 随手翻开</p>'
         f'{bar}{hint}{book}</div></div>'
     )
@@ -1566,27 +1566,41 @@ def xiaozao_day_html(d, xz_items):
         f'<a class="back" href="xiaozao.html">← 回小灶主页</a>'
         f'<div class="archive-block"><h2>小灶 · {td.month}月{td.day}日 周{WD[td.weekday()]}</h2>'
         f'{bar}'
-        f'<p class="xz-filter-hint">第二步：全部回完整页，或切换日期；'
-        f'<a href="xiaozao-dates.html">回完整页看全部 →</a></p>'
+        f'<p class="xz-filter-hint">第二步：全部回全集，或切换日期；'
+        f'<a href="xiaozao-dates.html">回全集看全部 →</a></p>'
         f'<p class="count">{base}</p>'
         f'{rack}'
         f'<nav class="xz-day-nav">{"".join(nav)}</nav></div></div>'
     )
 
 
-def _xz_back_nav(m, root="../", cls=""):
-    zname = _zone_name(m["zkey"])
-    d = m["日期"]
+def _xz_md_label(d):
+    """月日标签，如 10月20日。"""
     try:
-        td = datetime.date.fromisoformat(d); dl = f"{td.month}月{td.day}日"
+        td = datetime.date.fromisoformat(d)
+        return f"{td.month}月{td.day}日"
     except Exception:
-        dl = d
+        return d
+
+
+def _xz_entry_tag(m):
+    """正文左上标签：专区中文名 + 月日。"""
+    zname = _zone_name(m["zkey"])
+    return (
+        f'<span class="xz-entry-tag xz-{m["zkey"]}">'
+        f'{html.escape(zname)} {_xz_md_label(m["日期"])}</span>'
+    )
+
+
+def _xz_back_nav(m, root="../", cls=""):
+    """底部返回：全集｜专区｜日期（字面固定；链接仍指向对应页）。"""
+    d = m["日期"]
     return (
         f'<nav class="xz-back {cls}" aria-label="返回">'
         f'<span class="xz-back-l">返回</span>'
-        f'<a href="{root}xiaozao-dates.html">完整页</a>'
-        f'<a class="xz-{m["zkey"]}" href="{root}{ZONE_PAGE[m["zkey"]]}">{html.escape(zname)}</a>'
-        f'<a href="{root}xiaozao-day-{d}.html">{dl}</a></nav>'
+        f'<a href="{root}xiaozao-dates.html">全集</a>'
+        f'<a class="xz-{m["zkey"]}" href="{root}{ZONE_PAGE[m["zkey"]]}">专区</a>'
+        f'<a href="{root}xiaozao-day-{d}.html">日期</a></nav>'
     )
 
 
@@ -1607,9 +1621,8 @@ def render_xz_entry_page(m, body, root="../"):
             html_parts.append(body_to_paras(block.split("\n")))
     inner = (
         f'<div class="issue-page">'
-        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
-        f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · {html.escape(m["时段"])} · {name}</span></div>'
-        f'{_xz_back_nav(m, root)}'
+        f'<div class="issue-mast">{_xz_entry_tag(m)}'
+        f'<a class="brand-sm" href="{root}xiaozao.html">小灶</a></div>'
         f'<header class="issue-head"><div class="issue-kicker">小灶 · {name}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="piece-body">{"".join(html_parts)}</div>'
@@ -1639,9 +1652,8 @@ def render_xz_history_page(m, body, root="../"):
     serial = " · ".join(serial_bits)
     inner = (
         f'<div class="issue-page hist-page">'
-        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
-        f'<span class="meta-sm">{m["日期"].replace("-", " · ")} · 历史人物</span></div>'
-        f'{_xz_back_nav(m, root)}'
+        f'<div class="issue-mast">{_xz_entry_tag(m)}'
+        f'<a class="brand-sm" href="{root}xiaozao.html">小灶</a></div>'
         f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物 · {html.escape(pname)}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="hist-serial">{html.escape(serial)}'
@@ -1784,7 +1796,7 @@ def main():
             encoding="utf-8",
         )
     (OUT / "xiaozao-dates.html").write_text(
-        page("小灶完整页", xiaozao_dates_html(xz_items), "", active="xiaozao"),
+        page("小灶全集", xiaozao_dates_html(xz_items), "", active="xiaozao"),
         encoding="utf-8",
     )
     xz_dates = sorted({m["日期"] for m, _ in xz_items})
@@ -1800,7 +1812,7 @@ def main():
             f.unlink()
     for key, name, _ in ZONES:
         (OUT / f"xiaozao-dates-{key}.html").write_text(
-            page(f"小灶完整页 · {name}", xiaozao_dates_html(xz_items, filter_key=key), "", active="xiaozao"),
+            page(f"小灶全集 · {name}", xiaozao_dates_html(xz_items, filter_key=key), "", active="xiaozao"),
             encoding="utf-8",
         )
     (OUT / "zhiguai.html").write_text(

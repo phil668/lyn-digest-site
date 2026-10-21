@@ -956,7 +956,7 @@ button.ztab {
 .xz-day-nav{display:flex;justify-content:space-between;margin-top:1.5em;gap:1em}
 a.ztab{text-decoration:none}
 
-/* 小灶完整页「全部」· 线装古书（≠ 日期页日刊架） */
+/* 小灶全集「全部」· 线装古书（≠ 日期页日刊架） */
 .xz-overview .archive-block > .xz-ov-title {
   font-size: clamp(1.85rem, 4.5vw, 2.45rem);
   letter-spacing: 0.28em;
@@ -1611,6 +1611,18 @@ a.xz-piece.xz-history:hover {
   .xz-book-leaf { left: calc(50% + 0.25rem); }
   .xz-book-edge-r { right: -0.7rem; width: .75rem; }
 }
+
+/* ===== 小灶正文左上标签 ===== */
+.xz-entry-tag {
+  font-size: 0.78rem;
+  letter-spacing: 0.18em;
+  color: var(--mute);
+  font-family: inherit;
+}
+.xz-entry-tag.xz-zhiguai { color: var(--zg); }
+.xz-entry-tag.xz-minsu { color: #6a8f7a; }
+.xz-entry-tag.xz-shenhua { color: #8a6e4e; }
+.xz-entry-tag.xz-history { color: var(--acc); }
 
 /* ===== 小灶正文返回导航 ===== */
 .xz-back {

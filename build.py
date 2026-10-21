@@ -1574,24 +1574,6 @@ def xiaozao_day_html(d, xz_items):
     )
 
 
-def _xz_md_label(d):
-    """月日标签，如 10月20日。"""
-    try:
-        td = datetime.date.fromisoformat(d)
-        return f"{td.month}月{td.day}日"
-    except Exception:
-        return d
-
-
-def _xz_entry_tag(m):
-    """正文左上标签：专区中文名 + 月日。"""
-    zname = _zone_name(m["zkey"])
-    return (
-        f'<span class="xz-entry-tag xz-{m["zkey"]}">'
-        f'{html.escape(zname)} {_xz_md_label(m["日期"])}</span>'
-    )
-
-
 def _xz_back_nav(m, root="../", cls=""):
     """底部返回：全集｜专区｜日期（字面固定；链接仍指向对应页）。"""
     d = m["日期"]
@@ -1599,7 +1581,7 @@ def _xz_back_nav(m, root="../", cls=""):
         f'<nav class="xz-back {cls}" aria-label="返回">'
         f'<span class="xz-back-l">返回</span>'
         f'<a href="{root}xiaozao-dates.html">全集</a>'
-        f'<a class="xz-{m["zkey"]}" href="{root}{ZONE_PAGE[m["zkey"]]}">专区</a>'
+        f'<a href="{root}{ZONE_PAGE[m["zkey"]]}">专区</a>'
         f'<a href="{root}xiaozao-day-{d}.html">日期</a></nav>'
     )
 
@@ -1621,8 +1603,8 @@ def render_xz_entry_page(m, body, root="../"):
             html_parts.append(body_to_paras(block.split("\n")))
     inner = (
         f'<div class="issue-page">'
-        f'<div class="issue-mast">{_xz_entry_tag(m)}'
-        f'<a class="brand-sm" href="{root}xiaozao.html">小灶</a></div>'
+        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
+        f'<span class="meta-sm">{m["日期"].replace("-", "\u2009·\u2009")}\u2009·\u2009{html.escape(m["时段"])}\u2009·\u2009{name}</span></div>'
         f'<header class="issue-head"><div class="issue-kicker">小灶 · {name}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="piece-body">{"".join(html_parts)}</div>'
@@ -1652,8 +1634,8 @@ def render_xz_history_page(m, body, root="../"):
     serial = " · ".join(serial_bits)
     inner = (
         f'<div class="issue-page hist-page">'
-        f'<div class="issue-mast">{_xz_entry_tag(m)}'
-        f'<a class="brand-sm" href="{root}xiaozao.html">小灶</a></div>'
+        f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
+        f'<span class="meta-sm">{m["日期"].replace("-", "\u2009·\u2009")}\u2009·\u2009历史人物</span></div>'
         f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物 · {html.escape(pname)}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="hist-serial">{html.escape(serial)}'

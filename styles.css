@@ -164,7 +164,11 @@ footer { text-align: center; color: var(--mute); font-size: 0.75rem; letter-spac
   color: var(--fg); border: 0; letter-spacing: 0.28em;
 }
 .issue-mast .brand-sm:hover { color: var(--acc); border: 0; }
-.issue-mast .meta-sm { color: var(--mute); }
+.issue-mast .meta-sm {
+  color: var(--mute);
+  letter-spacing: 0.12em;
+  font-size: 0.72rem;
+}
 .issue-head { margin-bottom: 1.6rem; }
 .issue-kicker, .kicker { font-size: 0.78rem; letter-spacing: 0.35em; color: var(--acc); margin-bottom: 0.55rem; }
 .kicker .sep { color: var(--line); margin: 0 0.3rem; }
@@ -1612,17 +1616,6 @@ a.xz-piece.xz-history:hover {
   .xz-book-edge-r { right: -0.7rem; width: .75rem; }
 }
 
-/* ===== 小灶正文左上标签 ===== */
-.xz-entry-tag {
-  font-size: 0.78rem;
-  letter-spacing: 0.18em;
-  color: var(--mute);
-  font-family: inherit;
-}
-.xz-entry-tag.xz-zhiguai { color: var(--zg); }
-.xz-entry-tag.xz-minsu { color: #6a8f7a; }
-.xz-entry-tag.xz-shenhua { color: #8a6e4e; }
-.xz-entry-tag.xz-history { color: var(--acc); }
 
 /* ===== 小灶正文返回导航 ===== */
 .xz-back {
@@ -1635,8 +1628,4 @@ a.xz-piece.xz-history:hover {
   border-radius: 999px; text-decoration: none; color: inherit;
 }
 .xz-back a:hover { border-color: var(--acc); color: var(--acc); }
-.xz-back a.xz-zhiguai { color: var(--zg); }
-.xz-back a.xz-minsu { color: #6a8f7a; }
-.xz-back a.xz-shenhua { color: #8a6e4e; }
-.xz-back a.xz-history { color: var(--acc); }
 .xz-back-foot { margin: 1.8rem 0 .4rem; padding-top: 1rem; border-top: 1px solid color-mix(in srgb, currentColor 12%, transparent); }

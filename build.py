@@ -863,9 +863,107 @@ def home_html(issues, days, xz_items):
 </div>"""
 
 
-def _paper_item_sum(body_lines, n=78):
-    """First non-source body line, clipped — for newspaper digest."""
-    return _clip(_first_body_line(body_lines), n)
+def _paper_item_gist(body_lines, n=72):
+    """Effective short 概括 of one item for day-paper hubs (not raw prose dump)."""
+    chunks = []
+    for l in body_lines:
+        x = strip_md(l)
+        if not x or x.startswith("来源"):
+            continue
+        chunks.append(x)
+    if not chunks:
+        return ""
+    text = re.sub(r"[ \t]+", " ", " ".join(chunks)).strip()
+    # Drop commentary / second-voice tails
+    text = re.split(
+        r"(?:另一面|冷静看|两面看|多方角度|注意两点|读法两层)[：:，,]?",
+        text,
+        maxsplit=1,
+    )[0].strip()
+    # Strip wire heads / attribution (may stack)
+    wire = re.compile(
+        r"^(?:"
+        r"新华社(?:\d+月\d+日)?电[：:，,]?|"
+        r"路透[：:，,]?|"
+        r"中新网[：:，,]?|"
+        r"央视[／/]?中新网\d+月\d+日报道[：:，,]?|"
+        r"记者从[^，。]{2,24}获悉[，,]?|"
+        r"据最新[^，。]{2,20}[，,]?|"
+        r"美国白宫\d+月\d+日发布行政令[：:，,]?|"
+        r"(?:Euronews与Reuters|Reuters|梵蒂冈新闻网|新华社／以方媒体\d+月\d+日)报道?[：:，,]?"
+        r")"
+    )
+    for _ in range(4):
+        nxt = wire.sub("", text, count=1).strip()
+        if nxt == text:
+            break
+        text = nxt
+    # "……介绍／通报／宣布／称／表示：" → keep substance after colon
+    m = re.match(r"^(.{0,70}?(?:介绍|通报|宣布|称|表示|指出|披露|公报))[：:](.+)$", text)
+    if m and len(m.group(2).strip()) > 16:
+        text = m.group(2).strip()
+    # Drop "A发行、B开发的" long modifiers
+    text2 = re.sub(r"^[^。；]{0,40}?(?:发行|开发|研制|出品)的", "", text)
+    if 12 <= len(text2) < len(text):
+        text = text2
+    sents = [s for s in re.split(r"(?<=[。！？])", text) if s.strip()]
+    core = sents[0].strip() if sents else text
+    # Very short first sentence → pull next
+    if sents and len(core) < max(28, int(n * 0.42)):
+        for s in sents[1:]:
+            if len(core) + len(s) <= n + 6:
+                core += s
+            else:
+                break
+
+    def split_semi(s):
+        parts, buf, depth = [], "", 0
+        for ch in s:
+            if ch in "（(":
+                depth += 1
+            elif ch in "）)":
+                depth = max(0, depth - 1)
+            if ch == "；" and depth == 0:
+                parts.append(buf)
+                buf = ""
+            else:
+                buf += ch
+        if buf:
+            parts.append(buf)
+        return parts
+
+    if len(core) > n and "；" in core:
+        parts = split_semi(core)
+        acc = parts[0]
+        for p in parts[1:]:
+            if len(acc) + 1 + len(p) <= n + 6:
+                acc += "；" + p
+            else:
+                break
+        core = acc
+    core = core.strip().rstrip("；，、")
+    if len(core) <= n:
+        return core
+    # Soft clip at punctuation; do not cut inside parentheses
+    depth = 0
+    last_break = -1
+    start_paren = -1
+    for i, ch in enumerate(core[:n]):
+        if ch in "（(":
+            if depth == 0:
+                start_paren = i
+            depth += 1
+        elif ch in "）)":
+            depth = max(0, depth - 1)
+            if depth == 0:
+                start_paren = -1
+        if depth == 0 and ch in "，、； ":
+            last_break = i
+    if last_break >= max(18, n // 2):
+        return core[:last_break].rstrip("，、； ") + "…"
+    if depth > 0 and start_paren >= 12:
+        return core[:start_paren].rstrip("，、； ") + "…"
+    return core[:n].rstrip() + "…"
 
 
 def paper_slot_col(slot, m, body):
@@ -894,7 +992,7 @@ def paper_slot_col(slot, m, body):
             f'<div class="paper-kicker"><span class="pk-tag">头条</span>'
             f'<span class="pk-dom">{html.escape(dom)}</span></div>'
             f'<h3 class="paper-lead-title">{html.escape(title)}</h3>'
-            f'<p class="paper-sum">{html.escape(_paper_item_sum(blines, 90))}</p>'
+            f'<p class="paper-sum">{html.escape(_paper_item_gist(blines, 100))}</p>'
             f"</article>"
         )
     # remaining pieces as compact digest rows (skip if already in headlines)
@@ -904,8 +1002,8 @@ def paper_slot_col(slot, m, body):
         digests.append(
             f'<li class="paper-item">'
             f'<span class="pi-dom">{html.escape(dom)}</span>'
-            f'<span class="pi-title">{html.escape(_clip(title, 36))}</span>'
-            f'<span class="pi-sum">{html.escape(_paper_item_sum(blines, 56))}</span>'
+            f'<span class="pi-title">{html.escape(title)}</span>'
+            f'<span class="pi-sum">{html.escape(_paper_item_gist(blines, 72))}</span>'
             f"</li>"
         )
     # if no headlines but pieces exist, promote first as lead
@@ -915,7 +1013,7 @@ def paper_slot_col(slot, m, body):
             f'<article class="paper-lead">'
             f'<div class="paper-kicker"><span class="pk-dom">{html.escape(dom)}</span></div>'
             f'<h3 class="paper-lead-title">{html.escape(title)}</h3>'
-            f'<p class="paper-sum">{html.escape(_paper_item_sum(blines, 90))}</p>'
+            f'<p class="paper-sum">{html.escape(_paper_item_gist(blines, 100))}</p>'
             f"</article>"
         )
         digests = digests[1:]  # first already promoted
@@ -951,7 +1049,12 @@ def _day_status_label(day, day_map, *, is_today=False):
 def rizhi_day_paper_html(day, day_map, *, is_today=False):
     """单日报纸总页：三栏分区；已刊写概括，缺场标待刊／未刊。"""
     t = datetime.date.fromisoformat(day)
-    vol_date = f"{t.year} · {t.month} · {t.day}"
+    wd = f"周{WD[t.weekday()]}"
+    # vol with smaller middle-dots via .paper-dot
+    vol_date = (
+        f'{t.year}<span class="paper-dot"> · </span>'
+        f'{t.month}<span class="paper-dot"> · </span>{t.day}'
+    )
     status, published = _day_status_label(day, day_map, is_today=is_today)
     cols = "".join(
         paper_slot_col(s, *(day_map.get(s) or (None, "")))
@@ -971,8 +1074,8 @@ def rizhi_day_paper_html(day, day_map, *, is_today=False):
 </div>
 <h1 class="paper-name">{paper_name}</h1>
 <div class="paper-dateline">
-<strong>{vol_date}</strong>
-<span>{dlabel(day)}</span>
+<span class="paper-vol">{vol_date}</span>
+<span class="paper-wd">{wd}</span>
 <span class="paper-status">{status}</span>
 </div>
 <div class="paper-rule" aria-hidden="true"></div>

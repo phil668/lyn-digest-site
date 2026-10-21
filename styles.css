@@ -842,10 +842,19 @@ button.ztab {
 }
 .paper-dateline {
   display: flex; flex-wrap: wrap; justify-content: center; gap: 0.55rem 1.2rem;
-  margin: 0.55rem 0 0.75rem; font-size: 0.88rem; color: var(--ink-soft); letter-spacing: 0.06em;
+  margin: 0.55rem 0 0.75rem; font-size: 0.88rem; font-weight: 400;
+  color: var(--ink-soft); letter-spacing: 0.06em;
 }
-.paper-dateline strong { color: var(--fg); letter-spacing: 0.18em; }
-.paper-status { color: var(--mute); }
+/* left vol + right status share exact type with middle weekday */
+.paper-vol, .paper-wd, .paper-status {
+  color: inherit; font-size: inherit; font-weight: inherit;
+  letter-spacing: inherit; font-family: inherit;
+}
+/* middle-dot between year/month/day — smaller than digits */
+.paper-dot {
+  font-size: 0.72em; font-weight: 400; letter-spacing: 0;
+  opacity: 0.72; vertical-align: 0.06em;
+}
 .paper-rule {
   height: 0; border: 0; border-top: 3px double var(--rule); margin: 0 auto; max-width: 100%;
 }
@@ -887,7 +896,7 @@ button.ztab {
 }
 .paper-sum {
   margin: 0; font-size: 0.84rem; line-height: 1.65; color: var(--ink-soft);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
 }
 .paper-sum.mute { color: var(--mute); }
 .paper-digest {
@@ -895,7 +904,7 @@ button.ztab {
 }
 .paper-item {
   display: grid; grid-template-columns: 2.8rem 1fr; column-gap: 0.45rem;
-  padding: 0.45rem 0; border-bottom: 1px dotted color-mix(in srgb, var(--line) 80%, transparent);
+  padding: 0.5rem 0; border-bottom: 1px dotted color-mix(in srgb, var(--line) 80%, transparent);
 }
 .paper-item:last-child { border-bottom: 0; }
 .pi-dom {
@@ -903,13 +912,14 @@ button.ztab {
   padding-top: 0.12rem; line-height: 1.4;
 }
 .pi-title {
-  font-size: 0.86rem; font-weight: 600; line-height: 1.4; color: var(--fg);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
+  /* Full title — no ellipsis / line-clamp */
+  font-size: 0.86rem; font-weight: 600; line-height: 1.45; color: var(--fg);
+  overflow: visible; white-space: normal;
 }
 .pi-sum {
-  grid-column: 2; font-size: 0.76rem; line-height: 1.5; color: var(--mute);
-  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden;
-  margin-top: 0.15rem;
+  grid-column: 2; font-size: 0.76rem; line-height: 1.55; color: var(--mute);
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden;
+  margin-top: 0.18rem;
 }
 .paper-more {
   display: inline-block; margin-top: auto; padding-top: 0.55rem;

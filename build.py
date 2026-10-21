@@ -1349,7 +1349,7 @@ def _xz_day_rows(by, dates):
 
 
 def _xz_book_hrefs(xz_items):
-    """全部小灶条目 href 列表（新→旧），供随手翻开随机跳转。"""
+    """全部小灶条目 href 列表（新→旧），与书页顺序一致。"""
     by = {}
     for m, b in xz_items:
         by.setdefault(m["日期"], []).append((m, b))
@@ -1363,7 +1363,7 @@ def _xz_book_hrefs(xz_items):
 
 
 def _xz_ancient_book(xz_items):
-    """全集「全部」：线装古书摊开；点书页／随手翻开 → 随机进一条条目。"""
+    """全集「全部」：线装古书；随手翻开按书序随机翻 1～n 页，停页即跳转。"""
     import json
 
     hrefs = _xz_book_hrefs(xz_items)
@@ -1381,22 +1381,27 @@ def _xz_ancient_book(xz_items):
         )
         metas.extend(day_items)
     left_bits, right_bits = [], []
-    for i, (m, _) in enumerate(metas[:8]):
+    # 左右页各 5 条；不标专区
+    for i, (m, _) in enumerate(metas[:10]):
         short = ZONE_SHORT.get(m["zkey"], _zone_name(m["zkey"])[:2])
         raw = re.sub(r"[——（）()《》·、，,。：:]", "", m["标题"])
         title = _clip(raw, 8)
         bit = (
             f'<span class="xz-book-col xz-{m["zkey"]}" aria-hidden="true">'
-            f'<em class="xz-book-col-z">{html.escape(short)}</em>'
             f'<b class="xz-book-col-t">{html.escape(title)}</b>'
             f"</span>"
         )
-        (left_bits if i < 4 else right_bits).append(bit)
+        (left_bits if i < 5 else right_bits).append(bit)
     left_html = "".join(left_bits)
     right_html = "".join(right_bits)
-    titles = [m["标题"] for m, _ in metas]
+    titles = []
+    for m, _ in metas:
+        core = person_name_from_title(m["标题"])
+        core = re.sub(r"（[^）]*）\s*$", "", core).strip()
+        core = re.sub(r"\([^)]*\)\s*$", "", core).strip()
+        titles.append(core or m["标题"])
     titles_json = html.escape(json.dumps(titles, ensure_ascii=False), quote=True)
-    # script: 连翻 5 页（每页一次完整 rotateY 翻过书脊），最后一页翻完再跳转
+    # script: 按书序随机连翻 1～n 页；每页对应一则真实条目，停在哪则跳哪则
     script = (
         "<script>(function(){"
         'var root=document.getElementById("xz-book");if(!root)return;'
@@ -1404,21 +1409,24 @@ def _xz_ancient_book(xz_items):
         'try{hrefs=JSON.parse(root.getAttribute("data-hrefs")||"[]");'
         'titles=JSON.parse(root.getAttribute("data-titles")||"[]");}catch(e){}'
         'var leaf=document.getElementById("xz-book-leaf"),cap=document.getElementById("xz-book-cap");'
-        "var N=5,dur=620,gap=20;"
-        'try{if(matchMedia("(prefers-reduced-motion: reduce)").matches){dur=110;gap=10;}}catch(e){}'
-        'root.style.setProperty("--xz-flip",dur+"ms");'
-        "function pick(){return Math.floor(Math.random()*hrefs.length);}"
-        "function one(k,idx,done){"
+        "var base=780,gap=55,maxFlip=8;"
+        'try{if(matchMedia("(prefers-reduced-motion: reduce)").matches){base=120;gap=12;}}catch(e){}'
+        "function one(k,count,idx,done){"
         'leaf.classList.remove("is-turn");void leaf.offsetWidth;'
+        "var dur=base+(k%2?40:-20);"
+        'root.style.setProperty("--xz-flip",dur+"ms");'
         'var t=titles[idx]||"";leaf.querySelector(".xz-book-leaf-t").textContent=t;'
-        'if(cap)cap.textContent="第"+(k+1)+"/"+N+"页 · "+t;'
+        'if(cap)cap.textContent="翻 "+(k+1)+"/"+count+" · "+t;'
         'leaf.classList.add("is-turn");setTimeout(done,dur+gap);}'
         "function flip(){if(busy||!hrefs.length)return;busy=1;"
         'root.classList.add("is-flipping");root.setAttribute("aria-busy","true");'
-        "var seq=[];for(var i=0;i<N;i++)seq.push(pick());"
-        "var target=seq[N-1];var k=0;"
-        "(function step(){if(k>=N){location.href=hrefs[target];return;}"
-        "one(k,seq[k],function(){k++;step();});})();}"
+        "var len=hrefs.length,n=Math.min(maxFlip,len);"
+        "var count=1+Math.floor(Math.random()*n);"
+        "var start=Math.floor(Math.random()*len);"
+        "var seq=[];for(var i=0;i<count;i++)seq.push((start+i)%len);"
+        "var target=seq[count-1],k=0;"
+        "(function step(){if(k>=count){location.href=hrefs[target];return;}"
+        "one(k,count,seq[k],function(){k++;step();});})();}"
         'root.addEventListener("click",flip);'
         'root.addEventListener("keydown",function(e){'
         'if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();}});'
@@ -1429,10 +1437,12 @@ def _xz_ancient_book(xz_items):
     )
     return (
         f'<div class="xz-book" id="xz-book" data-hrefs="{hrefs_json}" data-titles="{titles_json}" '
-        f'role="button" tabindex="0" aria-label="随手翻开一卷小灶，随机阅读一则">'
-        f'<div class="xz-book-board">'
+        f'role="button" tabindex="0" aria-label="随手翻开一卷小灶：随机翻若干页，停在哪则读哪则">'
+                f'<div class="xz-book-board">'
         f'<div class="xz-book-binding" aria-hidden="true">'
         f"<span></span><span></span><span></span><span></span></div>"
+        f'<div class="xz-book-paper" aria-hidden="false">'
+        f'<div class="xz-book-mouth xz-book-mouth-l" aria-hidden="true"></div>'
         f'<div class="xz-book-spread">'
         f'<div class="xz-book-page xz-book-left">'
         f'<div class="xz-book-page-inner">'
@@ -1449,13 +1459,13 @@ def _xz_ancient_book(xz_items):
         f'<div class="xz-book-leaf-front"><b class="xz-book-leaf-t"></b></div>'
         f'<div class="xz-book-leaf-back"></div></div>'
         f"</div>"
-        f'<span class="xz-book-edge xz-book-edge-r" aria-hidden="true"></span>'
-        f'<span class="xz-book-edge xz-book-edge-b" aria-hidden="true"></span>'
+        f'<div class="xz-book-mouth xz-book-mouth-r" aria-hidden="true"></div>'
+        f"</div>"
         f'<span class="xz-book-ribbon" aria-hidden="true"></span>'
         f"</div>"
         f'<button type="button" class="xz-book-open" id="xz-book-open">随手翻开</button>'
         f'<p class="xz-book-cap" id="xz-book-cap" aria-live="polite"></p>'
-        f'<p class="xz-book-tip">点书页或按钮，连翻五页，停在哪页读哪则</p>'
+        f'<p class="xz-book-tip">点书页或按钮，随机翻 1～{min(8, n)} 页；每一页都是一则，停在哪则读哪则</p>'
         f"</div>"
         f"{script}"
     )
@@ -1527,11 +1537,7 @@ def xiaozao_dates_html(xz_items, filter_key=None):
         )
     # 「全部」＝线装古书；点书页／随手翻开 → 随机进一条条目
     bar = _xz_step1_bar(active="all", latest_date=latest)
-    hint = (
-        '<p class="xz-filter-hint">'
-        "点专区／日期进入第二步；下面是一卷小灶——随手翻开，随机读一则。"
-        "</p>"
-    )
+    hint = ""
     book = _xz_ancient_book(items)
     return (
         f'<div class="archive-page page-wide xz-overview">'
@@ -1586,6 +1592,33 @@ def _xz_back_nav(m, root="../", cls=""):
     )
 
 
+def _xz_pn_short(o):
+    """底栏小标题：只留核心名；历史加「第N天」。"""
+    title = o.get("标题") or ""
+    core = person_name_from_title(title)
+    core = re.sub(r"（[^）]*）\s*$", "", core).strip()
+    core = re.sub(r"\([^)]*\)\s*$", "", core).strip()
+    if o.get("zkey") == "history":
+        day, _ = parse_day_progress(title)
+        if day:
+            core = f"{core} · 第{day}天"
+    return core or _clip(title, 16)
+
+
+def _xz_prevnext(m, root="../"):
+    """底栏：同专区按时间正序的上一条／下一条。"""
+    def side(o, label, cls):
+        if not o:
+            return f'<span class="xz-pn {cls} is-off"><span class="xz-pn-l">{label}</span></span>'
+        t = html.escape(_xz_pn_short(o))
+        return (f'<a class="xz-pn {cls}" href="{_xz_href(o, root)}">'
+                f'<span class="xz-pn-l">{label}</span><span class="xz-pn-t">{t}</span></a>')
+    return ('<footer class="folio xz-prevnext">'
+            + side(m.get("_prev"), "← 上一条", "xz-pn-prev")
+            + side(m.get("_next"), "下一条 →", "xz-pn-next")
+            + '</footer>')
+
+
 def render_xz_entry_page(m, body, root="../"):
     name = next(n for k, n, _ in ZONES if k == m["zkey"])
     # body: ## headings + paras
@@ -1609,9 +1642,7 @@ def render_xz_entry_page(m, body, root="../"):
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="piece-body">{"".join(html_parts)}</div>'
         f'{_xz_back_nav(m, root, "xz-back-foot")}'
-        f'<footer class="folio"><a href="{root}{ZONE_PAGE[m["zkey"]]}">← {name}</a>'
-        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])}</span>'
-        f'<a href="{root}xiaozao.html">小灶主页</a></footer></div>'
+        f'{_xz_prevnext(m, root)}</div>'
     )
     return page(f'{name} · {m["标题"]}', inner, root, active="xiaozao")
 
@@ -1642,10 +1673,7 @@ def render_xz_history_page(m, body, root="../"):
         f' · <a href="{root}xiaozao/person-{pslug}.html">本人物目录</a></div>'
         f'<div class="hist-body">{hist_body}</div>'
         f'{_xz_back_nav(m, root, "xz-back-foot")}'
-        f'<footer class="folio"><a href="{root}xiaozao/person-{pslug}.html">← {html.escape(pname)}</a>'
-        f'<span class="center">{html.escape(dlabel(m["日期"]).split(" · ")[0])} · '
-        f'<a href="{root}xiaozao-history.html">历史人物</a></span>'
-        f'<a href="{root}xiaozao.html">小灶主页</a></footer></div>'
+        f'{_xz_prevnext(m, root)}</div>'
     )
     return page(f'历史 · {m["标题"]}', inner, root, active="xiaozao")
 
@@ -1723,6 +1751,13 @@ def main():
         days.setdefault(m["日期"], []).append((m, body))
 
     # 小灶独立条目页／历史日章／人物枢纽页
+    _zl = {}
+    for m, _b in xz_items:
+        _zl.setdefault(m["zkey"], []).append(m)
+    for lst in _zl.values():
+        for i, m in enumerate(lst):
+            m["_prev"] = lst[i - 1] if i else None
+            m["_next"] = lst[i + 1] if i + 1 < len(lst) else None
     for m, body in xz_items:
         if m["zkey"] == "history":
             (xz_dir / f'history-{m["slug"]}.html').write_text(

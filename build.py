@@ -49,6 +49,12 @@ def dlabel(d):
     return f"{t.month}月{t.day}日 · 周{WD[t.weekday()]}"
 
 
+def mdlabel(d):
+    """短日期：M月D日（正文专区标签用）。"""
+    t = datetime.date.fromisoformat(d)
+    return f"{t.month}月{t.day}日"
+
+
 def inline(t):
     t = html.escape(t, quote=False)
     links = []
@@ -386,6 +392,11 @@ def _zg_one(domain, title, body_lines):
 
 
 def page(title, body, root, active=None, wrap_main=True):
+    # <title> 去掉 Lyn 相关后缀／字样
+    t = title or ""
+    t = re.sub(r"\s*[·|]\s*Lyn[^·|]*", "", t)
+    t = re.sub(r"\bLyn\S*", "", t)
+    t = re.sub(r"\s{2,}", " ", t).strip(" ·|") or "Justknow"
     nav_links = [
         ("index.html", "首页", "home"),
         ("rizhi.html", "日知", "rizhi"),
@@ -397,12 +408,12 @@ def page(title, body, root, active=None, wrap_main=True):
     )
     inner = body if not wrap_main else f"<main>{body}</main>"
     return f"""<!doctype html><html lang="zh-CN"><head><meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(title)}</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"><title>{html.escape(t)}</title>
 <link rel="stylesheet" href="{root}styles.css"><script>if(localStorage.theme)document.documentElement.dataset.theme=localStorage.theme</script></head>
 <body><nav class="top"><a href="{root}index.html" class="brand">Justknow</a>
 <div class="nav-right">{links_html}
 <button type="button" onclick="var d=document.documentElement;d.dataset.theme=d.dataset.theme=='dark'?'light':'dark';localStorage.theme=d.dataset.theme" aria-label="切换主题">◐</button></div></nav>
-{inner}<footer>Justknow · Lyn每日三次知识分享</footer></body></html>"""
+{inner}<footer>Justknow · 每日三次知识分享</footer></body></html>"""
 
 
 def first_piece_teaser(body):
@@ -448,7 +459,7 @@ def slot_card(slot, m, body, featured=False):
             f'<div class="slot-label"><span>{slot}</span><span class="time">待刊</span></div>'
             f'<div class="who-line"><span class="who">日知</span> · 日知连载</div>'
             f'<h3>{slot}场尚未付印</h3>'
-            f'<p class="tease">刊出后会出现在这里，并同步进近日小卡。</p>'
+            f'<p class="tease">刊出后会出现在这里，并同步进今日小卡。</p>'
             f'<span class="open">待刊 · 请稍候</span></div>'
         )
     _, headlines, pieces, _, _ = split_sections(body)
@@ -1592,6 +1603,11 @@ def _xz_back_nav(m, root="../", cls=""):
     )
 
 
+def _xz_href(m, root="../"):
+    pre = "history" if m["zkey"] == "history" else "entry"
+    return f'{root}xiaozao/{pre}-{m["slug"]}.html'
+
+
 def _xz_pn_short(o):
     """底栏小标题：只留核心名；历史加「第N天」。"""
     title = o.get("标题") or ""
@@ -1621,6 +1637,7 @@ def _xz_prevnext(m, root="../"):
 
 def render_xz_entry_page(m, body, root="../"):
     name = next(n for k, n, _ in ZONES if k == m["zkey"])
+    zone_date = f'{name} · {mdlabel(m["日期"])}'
     # body: ## headings + paras
     html_parts = []
     for block in re.split(r"\n(?=## )", body):
@@ -1638,7 +1655,7 @@ def render_xz_entry_page(m, body, root="../"):
         f'<div class="issue-page">'
         f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
         f'<span class="meta-sm">{m["日期"].replace("-", "\u2009·\u2009")}\u2009·\u2009{html.escape(m["时段"])}\u2009·\u2009{name}</span></div>'
-        f'<header class="issue-head"><div class="issue-kicker">小灶 · {name}</div>'
+        f'<header class="issue-head"><div class="issue-kicker">{html.escape(zone_date)}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="piece-body">{"".join(html_parts)}</div>'
         f'{_xz_back_nav(m, root, "xz-back-foot")}'
@@ -1658,6 +1675,8 @@ def render_xz_history_page(m, body, root="../"):
     hist_body = format_hist_body(lines)
     pslug = person_slug_from_meta(m)
     pname = person_name_from_title(m["标题"]) or "人物志"
+    name = next(n for k, n, _ in ZONES if k == "history")
+    zone_date = f'{name} · {mdlabel(m["日期"])}'
     day, total = parse_day_progress(m["标题"])
     serial_bits = ["人物志 · 可按篇幅分日连载"]
     if day:
@@ -1666,8 +1685,8 @@ def render_xz_history_page(m, body, root="../"):
     inner = (
         f'<div class="issue-page hist-page">'
         f'<div class="issue-mast"><a class="brand-sm" href="{root}xiaozao.html">小灶</a>'
-        f'<span class="meta-sm">{m["日期"].replace("-", "\u2009·\u2009")}\u2009·\u2009历史人物</span></div>'
-        f'<header class="issue-head"><div class="issue-kicker">小灶 · 历史人物 · {html.escape(pname)}</div>'
+        f'<span class="meta-sm">{m["日期"].replace("-", "\u2009·\u2009")}\u2009·\u2009{name}</span></div>'
+        f'<header class="issue-head"><div class="issue-kicker">{html.escape(zone_date)}</div>'
         f'<h1 class="issue-title">{html.escape(m["标题"])}</h1></header>'
         f'<div class="hist-serial">{html.escape(serial)}'
         f' · <a href="{root}xiaozao/person-{pslug}.html">本人物目录</a></div>'
@@ -1773,7 +1792,7 @@ def main():
         )
 
     (OUT / "index.html").write_text(
-        page("Justknow · Lyn每日三次知识分享", home_html(issues, days, xz_items), "", active="home"),
+        page("Justknow", home_html(issues, days, xz_items), "", active="home"),
         encoding="utf-8",
     )
     (OUT / "rizhi.html").write_text(

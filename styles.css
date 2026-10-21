@@ -166,7 +166,7 @@ footer { text-align: center; color: var(--mute); font-size: 0.75rem; letter-spac
 .issue-mast .brand-sm:hover { color: var(--acc); border: 0; }
 .issue-mast .meta-sm {
   color: var(--mute);
-  letter-spacing: 0.12em;
+  letter-spacing: 0.19em;
   font-size: 0.72rem;
 }
 .issue-head { margin-bottom: 1.6rem; }
@@ -1905,4 +1905,81 @@ a.xz-piece.xz-history:hover {
   .xz-book-cols { gap: 0.85rem; padding: 0.4rem 0.55rem 0.55rem; }
   .xz-book-seal { width: 2.35rem; height: 2.35rem; font-size: 0.75rem; }
   .xz-book-binding { left: 0.55rem; width: 0.55rem; }
+}
+
+/* 小灶正文：返回三钮 + 上／下一条（底栏） */
+.xz-back {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  margin-top: 2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--rule);
+  font-size: 0.85rem;
+  letter-spacing: 0.12em;
+  color: var(--mute);
+}
+.xz-back-l {
+  margin-right: 0.2rem;
+  letter-spacing: 0.28em;
+  color: var(--mute);
+}
+.xz-back a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 3.6rem;
+  padding: 0.38rem 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  color: var(--fg);
+  text-decoration: none;
+  background: color-mix(in srgb, var(--paper) 90%, var(--acc));
+  letter-spacing: 0.2em;
+  line-height: 1.2;
+}
+.xz-back a:hover {
+  border-color: var(--acc);
+  color: var(--acc);
+}
+.xz-back-foot { /* same chrome; kept as hook for entry/history */ }
+
+footer.folio.xz-prevnext,
+.xz-prevnext.folio {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1.1rem;
+  margin-top: 1.05rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--line);
+}
+.xz-pn {
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  max-width: 46%;
+  border: 0 !important;
+  text-decoration: none;
+  color: var(--mute);
+}
+a.xz-pn:hover { color: var(--acc); border: 0 !important; }
+.xz-pn-prev { text-align: left; align-items: flex-start; }
+.xz-pn-next { text-align: right; align-items: flex-end; margin-left: auto; }
+.xz-pn-l {
+  font-size: 0.78rem;
+  letter-spacing: 0.22em;
+}
+.xz-pn-t {
+  font-size: 0.92rem;
+  letter-spacing: 0.12em;
+  color: var(--fg);
+  line-height: 1.45;
+}
+a.xz-pn:hover .xz-pn-t { color: var(--acc); }
+.xz-pn.is-off {
+  opacity: 0.38;
+  pointer-events: none;
+  cursor: default;
 }

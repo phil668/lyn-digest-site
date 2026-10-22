@@ -1463,126 +1463,200 @@ def _xz_day_rows(by, dates):
     return rows
 
 
-def _xz_book_hrefs(xz_items):
-    """全部小灶条目 href 列表（新→旧），与书页顺序一致。"""
-    by = {}
-    for m, b in xz_items:
-        by.setdefault(m["日期"], []).append((m, b))
-    hrefs = []
-    for d in sorted(by, reverse=True):
-        day_items = sorted(
-            by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"])
-        )
-        hrefs.extend(_xz_href(m) for m, _ in day_items)
-    return hrefs
+_CN_DIGITS = "〇一二三四五六七八九"
+
+
+def _cn_num(n):
+    """1～999 → 中文数字（十一、二十、一百零五）。"""
+    if n < 10:
+        return _CN_DIGITS[n]
+    if n < 20:
+        return "十" + (_CN_DIGITS[n % 10] if n % 10 else "")
+    if n < 100:
+        return _CN_DIGITS[n // 10] + "十" + (_CN_DIGITS[n % 10] if n % 10 else "")
+    rest = n % 100
+    tail = "" if not rest else ("零" + _CN_DIGITS[rest] if rest < 10 else _cn_num(rest))
+    return _CN_DIGITS[n // 100] + "百" + tail
+
+
+def _cn_date(d):
+    """2026-10-21 → 十月廿一日"""
+    td = datetime.date.fromisoformat(d)
+    day = td.day
+    if day == 20:
+        dd = "二十"
+    elif day == 30:
+        dd = "三十"
+    elif 20 < day < 30:
+        dd = "廿" + _CN_DIGITS[day - 20]
+    elif day > 30:
+        dd = "卅" + _CN_DIGITS[day - 30]
+    else:
+        dd = _cn_num(day)
+    return f"{_cn_num(td.month)}月{dd}日"
+
+
+def _xz_book_excerpt(body, n=140):
+    """书页摘句：优先第一段「原文」，否则取导语首行。"""
+    for l in body.split("\n"):
+        t = strip_md(l)
+        if t.startswith("原文"):
+            t = re.sub(r"^原文[一二三四五六七八九十]?(（[^）]*）)?[：:]\s*", "", t)
+            return _clip(t, n)
+    return _clip(re.sub(r"^(原文|白话)[：:]\s*", "", _xz_hook_line(body, n)), n)
+
+
+def _xzb_pg(p):
+    """一页＝一则：版框、界行、竖排（与书页 script 里的 pg() 同构）。"""
+    e = html.escape
+    return (
+        f'<div class="xzb-pg xz-{e(p["k"])}"><div class="xzb-frame">'
+        f'<div class="xzb-text"><h3 class="xzb-t"><span class="xzb-z">{e(p["z"])}</span>{e(p["t"])}</h3>'
+        f'<p class="xzb-x">{e(p["x"])}</p></div>'
+        f'<p class="xzb-d">{e(p["d"])}</p></div>'
+        f'<span class="xzb-no">{e(p["n"])}</span></div>'
+    )
+
+
+# 书页 script：中式翻页（左页掀起、向右落下）；先抓一叠、再单叶慢停；停页钤印后跳转
+_XZB_SCRIPT = """<script>(function(){
+var root=document.getElementById("xz-book");if(!root)return;
+var book=root.querySelector(".xzb-book"),L=book.querySelector(".xzb-l"),R=book.querySelector(".xzb-r"),
+cap=document.getElementById("xz-book-cap"),btn=document.getElementById("xz-book-open");
+var P=[];try{P=JSON.parse(root.getAttribute("data-pages")||"[]");}catch(e){}
+var len=P.length;if(!len)return;
+var cur=0,busy=0,timer=0;
+var mqS=matchMedia("(max-width: 640px)"),mqR=matchMedia("(prefers-reduced-motion: reduce)");
+function single(){return mqS.matches;}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#x27;"}[c];});}
+function at(i){return P[((i%len)+len)%len];}
+function pg(i){var p=at(i);return '<div class="xzb-pg xz-'+esc(p.k)+'"><div class="xzb-frame"><div class="xzb-text"><h3 class="xzb-t"><span class="xzb-z">'+esc(p.z)+'</span>'+esc(p.t)+'</h3><p class="xzb-x">'+esc(p.x)+'</p></div><p class="xzb-d">'+esc(p.d)+'</p></div><span class="xzb-no">'+esc(p.n)+'</span></div>';}
+function set(el,i){el.querySelector(".xzb-c").innerHTML=pg(i);}
+function lOf(c){return single()?c:c+1;}
+function edges(){book.style.setProperty("--xzb-f",((((cur%len)+len)%len)/len).toFixed(3));}
+function render(){set(R,cur);set(L,lOf(cur));edges();}
+function say(h){if(cap)cap.innerHTML=h;}
+function rest(){say("卷中 "+len+" 则 · 此刻翻在「"+esc(at(cur).t)+"」");}
+function clearSeal(){var s=book.querySelectorAll(".xzb-seal");for(var i=0;i<s.length;i++)s[i].remove();}
+var EZ="cubic-bezier(.45,.05,.2,1)";
+function turn(chunk,dur,z,onLand){
+var unit=single()?1:2,from=lOf(cur),next=cur+chunk*unit;
+var el=document.createElement("div");
+el.className="xzb-leaf"+(chunk>1?" is-thick":"");
+el.innerHTML='<div class="xzb-page xzb-face xzb-front"><div class="xzb-c">'+pg(from)+'</div><i class="xzb-sh"></i></div>'+
+'<div class="xzb-page xzb-face xzb-back"><div class="xzb-c">'+(single()?"":pg(next))+'</div><i class="xzb-sh"></i></div>';
+book.appendChild(el);
+cur=next;set(L,lOf(cur));edges();
+var tz="translateZ("+(1+z)+"px) ",o={duration:dur,easing:EZ,fill:"forwards"};
+var a=el.animate([{transform:tz+"rotateY(0deg)"},{transform:tz+"rotateY(180deg)"}],o);
+el.querySelector(".xzb-front .xzb-sh").animate([{opacity:0},{opacity:.55,offset:.5},{opacity:.55}],o);
+el.querySelector(".xzb-back .xzb-sh").animate([{opacity:.55},{opacity:.55,offset:.5},{opacity:0}],o);
+L.querySelector(".xzb-sh").animate([{opacity:.45},{opacity:0,offset:.55},{opacity:0}],{duration:dur,easing:EZ});
+R.querySelector(".xzb-sh").animate([{opacity:0},{opacity:0,offset:.5},{opacity:.35,offset:.93},{opacity:0}],{duration:dur,easing:EZ});
+var landed=cur;
+a.finished.then(function(){set(R,landed);el.remove();if(onLand)onLand();},function(){});
+}
+function plan(){
+var unit=single()?1:2,D=3+Math.floor(Math.random()*len),K=Math.max(1,Math.floor(D/unit));
+var F=Math.min(K,3+Math.floor(Math.random()*4)),tail=Math.min(2,F),head=F-tail,hl=K-tail,ch=[];
+for(var i=0;i<head;i++)ch.push(Math.floor(hl/head)+(i<hl%head?1:0));
+for(i=0;i<tail;i++)ch.push(1);
+return{ch:ch,left:unit===2&&D%2===1};
+}
+function stop(left){
+var el=left?L:R,idx=left?lOf(cur):cur;
+if(single()){el=L;idx=cur;}
+var p=at(idx),s=document.createElement("span");
+s.className="xzb-seal";s.textContent="读此";el.appendChild(s);
+say('停在「<a href="'+esc(p.h)+'">'+esc(p.t)+"</a>」 · "+esc(p.z)+" · "+esc(p.d));
+timer=setTimeout(function(){location.href=p.h;},mqR.matches?700:1350);
+}
+function flip(){
+if(busy)return;busy=1;clearSeal();
+root.classList.add("is-flipping");root.setAttribute("aria-busy","true");
+var pl=plan(),ch=pl.ch,unit=single()?1:2;
+if(mqR.matches){
+for(var j=0;j<ch.length;j++)cur+=ch[j]*unit;
+render();book.animate([{opacity:.35},{opacity:1}],{duration:220});
+return stop(pl.left);
+}
+var i=0;
+(function go(){
+var c=ch[i],last=i===ch.length-1,d=i===0?700:last?1050:c>1?470:580;
+turn(c,d,i,last?function(){stop(pl.left);}:null);
+say((c>1?"一抓 "+c*unit+" 页 · ":"")+"翻至"+esc(at(cur).n));
+i++;if(!last)setTimeout(go,d*.58);
+})();
+}
+book.addEventListener("click",flip);
+if(btn)btn.addEventListener("click",flip);
+function onMode(){if(!busy)render();}
+if(mqS.addEventListener)mqS.addEventListener("change",onMode);
+addEventListener("pageshow",function(e){
+if(!e.persisted)return;
+clearTimeout(timer);busy=0;
+var ls=book.querySelectorAll(".xzb-leaf");for(var i=0;i<ls.length;i++)ls[i].remove();
+clearSeal();root.classList.remove("is-flipping");root.removeAttribute("aria-busy");
+render();rest();
+});
+render();rest();
+})();</script>"""
 
 
 def _xz_ancient_book(xz_items):
-    """全集「全部」：线装古书；随手翻开按书序随机翻 1～n 页，停页即跳转。"""
-    import json
-
-    hrefs = _xz_book_hrefs(xz_items)
-    if not hrefs:
-        return '<p class="xz-filter-empty">暂无条目</p>'
-    hrefs_json = html.escape(json.dumps(hrefs, ensure_ascii=False), quote=True)
-    n = len(hrefs)
+    """全集「全部」：线装古书，一页一则；随手翻开＝随机翻到某则，钤印后跳转。"""
     by = {}
     for m, b in xz_items:
         by.setdefault(m["日期"], []).append((m, b))
     metas = []
     for d in sorted(by, reverse=True):
-        day_items = sorted(
-            by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"])
+        metas.extend(
+            sorted(by[d], key=lambda x: (ORDER.get(x[0]["时段"], 9), x[0]["slug"]))
         )
-        metas.extend(day_items)
-    left_bits, right_bits = [], []
-    # 左右页各 5 条；不标专区
-    for i, (m, _) in enumerate(metas[:10]):
-        short = ZONE_SHORT.get(m["zkey"], _zone_name(m["zkey"])[:2])
-        raw = re.sub(r"[——（）()《》·、，,。：:]", "", m["标题"])
-        title = _clip(raw, 8)
-        bit = (
-            f'<span class="xz-book-col xz-{m["zkey"]}" aria-hidden="true">'
-            f'<b class="xz-book-col-t">{html.escape(title)}</b>'
-            f"</span>"
-        )
-        (left_bits if i < 5 else right_bits).append(bit)
-    left_html = "".join(left_bits)
-    right_html = "".join(right_bits)
-    titles = []
-    for m, _ in metas:
+    if not metas:
+        return '<p class="xz-filter-empty">暂无条目</p>'
+    pages = []
+    for i, (m, b) in enumerate(metas):
         core = person_name_from_title(m["标题"])
         core = re.sub(r"（[^）]*）\s*$", "", core).strip()
         core = re.sub(r"\([^)]*\)\s*$", "", core).strip()
-        titles.append(core or m["标题"])
-    titles_json = html.escape(json.dumps(titles, ensure_ascii=False), quote=True)
-    # script: 按书序随机连翻 1～n 页；每页对应一则真实条目，停在哪则跳哪则
-    script = (
-        "<script>(function(){"
-        'var root=document.getElementById("xz-book");if(!root)return;'
-        "var hrefs=[],titles=[],busy=0;"
-        'try{hrefs=JSON.parse(root.getAttribute("data-hrefs")||"[]");'
-        'titles=JSON.parse(root.getAttribute("data-titles")||"[]");}catch(e){}'
-        'var leaf=document.getElementById("xz-book-leaf"),cap=document.getElementById("xz-book-cap");'
-        "var base=780,gap=55,maxFlip=8;"
-        'try{if(matchMedia("(prefers-reduced-motion: reduce)").matches){base=120;gap=12;}}catch(e){}'
-        "function one(k,count,idx,done){"
-        'leaf.classList.remove("is-turn");void leaf.offsetWidth;'
-        "var dur=base+(k%2?40:-20);"
-        'root.style.setProperty("--xz-flip",dur+"ms");'
-        'var t=titles[idx]||"";leaf.querySelector(".xz-book-leaf-t").textContent=t;'
-        'if(cap)cap.textContent="翻 "+(k+1)+"/"+count+" · "+t;'
-        'leaf.classList.add("is-turn");setTimeout(done,dur+gap);}'
-        "function flip(){if(busy||!hrefs.length)return;busy=1;"
-        'root.classList.add("is-flipping");root.setAttribute("aria-busy","true");'
-        "var len=hrefs.length,n=Math.min(maxFlip,len);"
-        "var count=1+Math.floor(Math.random()*n);"
-        "var start=Math.floor(Math.random()*len);"
-        "var seq=[];for(var i=0;i<count;i++)seq.push((start+i)%len);"
-        "var target=seq[count-1],k=0;"
-        "(function step(){if(k>=count){location.href=hrefs[target];return;}"
-        "one(k,count,seq[k],function(){k++;step();});})();}"
-        'root.addEventListener("click",flip);'
-        'root.addEventListener("keydown",function(e){'
-        'if(e.key==="Enter"||e.key===" "){e.preventDefault();flip();}});'
-        'var btn=document.getElementById("xz-book-open");'
-        'if(btn)btn.addEventListener("click",function(e){e.stopPropagation();flip();});'
-        'addEventListener("pageshow",function(e){if(e.persisted){busy=0;root.classList.remove("is-flipping");leaf.classList.remove("is-turn");if(cap)cap.textContent="";}});'
-        "})();</script>"
-    )
+        slot = m.get("时段") or ""
+        pages.append(
+            {
+                "h": _xz_href(m),
+                "t": core or m["标题"],
+                "k": m["zkey"],
+                "z": ZONE_SHORT.get(m["zkey"], _zone_name(m["zkey"])[:2]),
+                "d": _cn_date(m["日期"]) + (f" · {slot}" if slot else ""),
+                "x": _xz_book_excerpt(b),
+                "n": f"第{_cn_num(i + 1)}则",
+            }
+        )
+    return _xz_book_markup(pages)
+
+
+def _xz_book_markup(pages):
+    """书页 DOM：磁青书衣 + 左右书口厚度 + 两页（窄屏单页、右侧线装）；首屏服务端先排好第一、二则。"""
+    import json
+
+    data = html.escape(json.dumps(pages, ensure_ascii=False), quote=True)
+    n = len(pages)
+    right = _xzb_pg(pages[0])
+    left = _xzb_pg(pages[1 % n])
     return (
-        f'<div class="xz-book" id="xz-book" data-hrefs="{hrefs_json}" data-titles="{titles_json}" '
-        f'role="button" tabindex="0" aria-label="随手翻开一卷小灶：随机翻若干页，停在哪则读哪则">'
-                f'<div class="xz-book-board">'
-        f'<div class="xz-book-binding" aria-hidden="true">'
-        f"<span></span><span></span><span></span><span></span></div>"
-        f'<div class="xz-book-paper" aria-hidden="false">'
-        f'<div class="xz-book-mouth xz-book-mouth-l" aria-hidden="true"></div>'
-        f'<div class="xz-book-spread">'
-        f'<div class="xz-book-page xz-book-left">'
-        f'<div class="xz-book-page-inner">'
-        f'<span class="xz-book-seal" aria-hidden="true">小灶</span>'
-        f'<div class="xz-book-cols">{left_html}</div>'
+        f'<div class="xz-book" id="xz-book" data-pages="{data}">'
+        f'<div class="xzb-stage"><div class="xzb-book" title="随手翻开">'
+        f'<i class="xzb-edge xzb-edge-l" aria-hidden="true"></i>'
+        f'<i class="xzb-edge xzb-edge-r" aria-hidden="true"></i>'
+        f'<div class="xzb-page xzb-l"><div class="xzb-c">{left}</div><i class="xzb-sh"></i></div>'
+        f'<div class="xzb-page xzb-r"><div class="xzb-c">{right}</div><i class="xzb-sh"></i></div>'
         f"</div></div>"
-        f'<div class="xz-book-gutter" aria-hidden="true"></div>'
-        f'<div class="xz-book-page xz-book-right">'
-        f'<div class="xz-book-page-inner">'
-        f'<div class="xz-book-cols">{right_html}</div>'
-        f'<p class="xz-book-verso" aria-hidden="true">凡{n}则 · 随手一翻</p>'
-        f"</div></div>"
-        f'<div class="xz-book-leaf" id="xz-book-leaf" aria-hidden="true">'
-        f'<div class="xz-book-leaf-front"><b class="xz-book-leaf-t"></b></div>'
-        f'<div class="xz-book-leaf-back"></div></div>'
-        f"</div>"
-        f'<div class="xz-book-mouth xz-book-mouth-r" aria-hidden="true"></div>'
-        f"</div>"
-        f'<span class="xz-book-ribbon" aria-hidden="true"></span>'
-        f"</div>"
+        f'<div class="xzb-bar">'
         f'<button type="button" class="xz-book-open" id="xz-book-open">随手翻开</button>'
         f'<p class="xz-book-cap" id="xz-book-cap" aria-live="polite"></p>'
-        f'<p class="xz-book-tip">点书页或按钮，随机翻 1～{min(8, n)} 页；每一页都是一则，停在哪则读哪则</p>'
-        f"</div>"
-        f"{script}"
+        f'<p class="xz-book-tip">点书页或按钮，随手翻到某一页；一页一则，停在哪则读哪则</p>'
+        f"</div></div>"
+        f"{_XZB_SCRIPT}"
     )
 
 
